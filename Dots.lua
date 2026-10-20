@@ -60,7 +60,7 @@ Dots.CATALOGS = {
         [470411]  = { period = 2 },                    -- Choque de llamas
         [703]     = { period = 2 },                    -- Garrote
         [772]     = { period = 3 },                    -- Desgarrar
-        [271788]  = { period = 3 },                    -- Picadura de serpiente (periodo de memoria)
+        [271788]  = { period = 3 },                    -- Picadura de serpiente
     },
 }
 -- stylua: ignore end
