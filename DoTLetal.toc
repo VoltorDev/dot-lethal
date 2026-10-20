@@ -1,10 +1,10 @@
-## Interface: 16001
-## AllowLoadGameType: camelot, forever
-## ExcludeLoadGameType: standard, classic
+## Interface: 120100, 120105, 16001
+## AllowLoadGameType: standard, camelot, forever
+## ExcludeLoadGameType: classic
 ## Title: DoTLetal
-## Notes: Tells you whether your DoTs will kill your target.
-## Notes-esES: Te dice si tus DoTs van a matar al objetivo.
-## Notes-esMX: Te dice si tus DoTs van a matar al objetivo.
+## Notes: DoT damage per second and time left, the health your target will lose to them, and a skull if they kill it.
+## Notes-esES: Daño por segundo y tiempo de tus DoTs, la vida que quitarán al objetivo y una calavera si lo matan.
+## Notes-esMX: Daño por segundo y tiempo de tus DoTs, la vida que quitarán al objetivo y una calavera si lo matan.
 ## Author: Nico
 ## Version: @project-version@
 ## IconTexture: Interface\Icons\Spell_Shadow_ShadowWordPain
@@ -29,4 +29,5 @@ Core.lua
 Config.lua
 Slash.lua
 Dots.lua
+Marker.lua
 Modules\Indicator.lua

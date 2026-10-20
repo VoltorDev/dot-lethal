@@ -59,6 +59,30 @@ function module:OnInitialize()
     end
     Settings.CreateDropdown(category, mode, GetModeOptions, L.OPT_MODE_TT)
 
+    local targetFrame = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_TargetFrame",
+        "targetFrame",
+        db,
+        Settings.VarType.Boolean,
+        L.OPT_TARGETFRAME,
+        ns.DEFAULTS.targetFrame
+    )
+    targetFrame:SetValueChangedCallback(OnSettingChanged)
+    Settings.CreateCheckbox(category, targetFrame, L.OPT_TARGETFRAME_TT)
+
+    local nameplate = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_Nameplate",
+        "nameplate",
+        db,
+        Settings.VarType.Boolean,
+        L.OPT_NAMEPLATE,
+        ns.DEFAULTS.nameplate
+    )
+    nameplate:SetValueChangedCallback(OnSettingChanged)
+    Settings.CreateCheckbox(category, nameplate, L.OPT_NAMEPLATE_TT)
+
     Settings.RegisterAddOnCategory(category)
     ns.settingsCategory = category
 end

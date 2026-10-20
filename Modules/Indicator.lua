@@ -1,30 +1,45 @@
 local addonName, ns = ...
 local L = ns.L
 local Dots = ns.Dots
+local Marker = ns.Marker
 local module = ns:NewModule("Indicator")
 
--- Indicador: ¿matan al objetivo los DoTs que le quedan?
---
--- La vida del objetivo es SIEMPRE secreta: no se puede comparar con el daño de los DoTs. La
--- comparación la hace una barra de estado, que acepta el secreto en SetValue y lo recorta a su
--- rango: con SetMinMaxValues(R, R + 1) y SetValue(vida), la barra está vacía si vida <= R (los
--- DoTs la matan) y llena si vida >= R + 1. Debajo de la barra hay un cuadro verde con el visto
--- bueno; si la barra se llena, lo tapa de rojo. El addon nunca sabe cuál de los dos se ve: solo
--- lo ve el jugador. Ver secretos-y-restricciones.md de la skill wow-addons.
-local TICK = 0.2 -- segundos entre actualizaciones mientras quedan DoTs (los ticks cambian R)
-local SIZE = 28
-local BAR_WIDTH = 120
+-- Panel y marcas: daño por segundo de los DoTs, tiempo de cada uno y, en las barras de vida del
+-- objetivo (panel, marco de objetivo y su placa), lo que perderá por DoTs y una calavera si muere.
+-- La vida del objetivo solo se entrega a Marker; aquí no se compara ni se opera con ella.
+local TICK = 0.2 -- segundos entre actualizaciones mientras quedan DoTs
+local WIDTH = 170
+local ROW = 14
+local MAX_ROWS = 6
 
-local function SolidBar(parent, r, g, b, a)
-    local bar = CreateFrame("StatusBar", nil, parent)
-    bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-    bar:SetStatusBarColor(r, g, b, a)
-    return bar
+local function Abbrev(n)
+    return AbbreviateNumbers(math.floor(n + 0.5))
+end
+
+-- Barras de vida ajenas del objetivo: la del marco de objetivo de Blizzard y la de su placa
+-- (Blizzard o Plater). Si un addon las cambia de sitio o de nombre, simplemente no se marcan.
+local function TargetFrameBar()
+    local content = TargetFrame and TargetFrame.TargetFrameContent
+    local main = content and content.TargetFrameContentMain
+    local container = main and main.HealthBarsContainer
+    return container and container.HealthBar
+end
+
+local function NameplateBar()
+    ---@type table? placa de Blizzard (UnitFrame) o de Plater (unitFrame)
+    local plate = C_NamePlate.GetNamePlateForUnit("target")
+    if not plate then
+        return nil
+    end
+    local unitFrame = plate.UnitFrame or plate.unitFrame
+    return unitFrame and unitFrame.healthBar
 end
 
 function module:OnEnable()
+    Dots.Configure(ns.Client.isRetail)
+
     local frame = CreateFrame("Frame", addonName .. "Frame", UIParent)
-    frame:SetSize(SIZE + 6 + BAR_WIDTH, SIZE)
+    frame:SetSize(WIDTH, 34)
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
     frame:SetDontSavePosition(true) -- la posición la guarda el addon, no el layout del cliente
@@ -36,54 +51,56 @@ function module:OnEnable()
         local position = ns.db.frame
         position.point, position.relativePoint, position.x, position.y = point, relativePoint, x, y
     end)
+    local background = frame:CreateTexture(nil, "BACKGROUND")
+    background:SetAllPoints()
+    background:SetColorTexture(0, 0, 0, 0.45)
 
-    -- Veredicto. Capa inferior: verde con visto bueno (muere).
-    local verdict = CreateFrame("Frame", nil, frame)
-    verdict:SetSize(SIZE, SIZE)
-    verdict:SetPoint("LEFT")
-    local yes = verdict:CreateTexture(nil, "BACKGROUND")
-    yes:SetAllPoints()
-    yes:SetColorTexture(0.05, 0.45, 0.1, 0.9)
-    local check = verdict:CreateTexture(nil, "ARTWORK")
-    check:SetPoint("CENTER")
-    check:SetSize(SIZE - 6, SIZE - 6)
-    check:SetAtlas("common-icon-checkmark")
-
-    -- Capa superior: barra roja opaca, llena (lo tapa todo) cuando el objetivo sobrevive. No lleva
-    -- icono: la barra recorta su textura de relleno y estropearía las coordenadas de un atlas.
-    local cover = SolidBar(verdict, 0.6, 0.08, 0.08, 1)
-    cover:SetAllPoints()
-    cover:SetFrameLevel(verdict:GetFrameLevel() + 1)
-
-    -- Detalle: vida del objetivo (gris) y, encima, el daño de los DoTs en la misma escala (verde).
-    -- Si lo verde pasa del final de lo gris, los DoTs lo matan.
-    local health = SolidBar(frame, 0.35, 0.35, 0.35, 1)
-    health:SetSize(BAR_WIDTH, 10)
-    health:SetPoint("TOPLEFT", verdict, "TOPRIGHT", 6, 0)
+    -- Barra de vida propia del panel (la calavera de su marca queda a su izquierda).
+    local health = CreateFrame("StatusBar", nil, frame)
+    health:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    health:SetStatusBarColor(0.15, 0.7, 0.15)
+    health:SetSize(WIDTH - 24, 10)
+    health:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -3)
     local healthBg = health:CreateTexture(nil, "BACKGROUND")
     healthBg:SetAllPoints()
-    healthBg:SetColorTexture(0, 0, 0, 0.6)
-    local damage = SolidBar(frame, 0.2, 0.9, 0.2, 0.55)
-    damage:SetAllPoints(health)
-    damage:SetFrameLevel(health:GetFrameLevel() + 1)
+    healthBg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
 
-    local dotText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    dotText:SetPoint("BOTTOMLEFT", verdict, "BOTTOMRIGHT", 6, 0)
+    local header = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    header:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -16)
     local healthText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    healthText:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+    healthText:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -4, -16)
+
+    local rows = {}
+    for i = 1, MAX_ROWS do
+        local row = {}
+        row.icon = frame:CreateTexture(nil, "ARTWORK")
+        row.icon:SetSize(ROW - 2, ROW - 2)
+        row.icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -30 - (i - 1) * ROW)
+        row.name = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.name:SetPoint("LEFT", row.icon, "RIGHT", 3, 0)
+        row.name:SetWidth(78)
+        row.name:SetJustifyH("LEFT")
+        row.info = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.info:SetPoint("RIGHT", frame, "TOPRIGHT", -4, -30 - (i - 1) * ROW - (ROW - 2) / 2)
+        rows[i] = row
+    end
 
     frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
     frame:RegisterUnitEvent("UNIT_HEALTH", "target")
     frame:RegisterUnitEvent("UNIT_MAXHEALTH", "target")
     frame:RegisterEvent("PLAYER_TARGET_CHANGED")
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    frame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+    frame:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
     frame:SetScript("OnEvent", function(_, event, ...)
         module:OnEvent(event, ...)
     end)
 
-    self.frame, self.cover = frame, cover
-    self.health, self.damage = health, damage
-    self.dotText, self.healthText = dotText, healthText
+    self.frame, self.header, self.healthText, self.rows = frame, header, healthText, rows
+    self.panelBar = health
+    self.panelMarker = Marker.New(health, 14)
+    self.hostMarkers = {} -- barra anfitriona -> Marker (las placas se reciclan: una por barra)
+    self:MarkerFor(TargetFrameBar()) -- fuera de combate: el marco de objetivo es de Blizzard
     Dots.Rebuild(ns.db.custom)
     Dots.OnTargetChanged()
     self:ApplySettings()
@@ -119,8 +136,31 @@ function module:StopTicker()
     end
 end
 
--- Daño que se pinta: el real o, con el marco desbloqueado para moverlo, uno de muestra.
-local PREVIEW = 1000
+function module:HostBars()
+    local db, bars = ns.db, {}
+    if db.targetFrame then
+        bars[#bars + 1] = TargetFrameBar()
+    end
+    if db.nameplate then
+        bars[#bars + 1] = NameplateBar()
+    end
+    return bars
+end
+
+function module:MarkerFor(bar)
+    if type(bar) ~= "table" or type(bar.GetStatusBarTexture) ~= "function" then
+        return nil
+    end
+    local marker = self.hostMarkers[bar]
+    if not marker then
+        marker = Marker.New(bar)
+        self.hostMarkers[bar] = marker
+    end
+    return marker
+end
+
+-- Daño de muestra con el marco desbloqueado para moverlo.
+local PREVIEW = { damage = 1000, dps = 125, list = { { name = "DoT", damage = 1000, seconds = 8, dps = 125 } } }
 
 function module:Update()
     local frame = self.frame
@@ -133,34 +173,68 @@ function module:Update()
         Dots.OnTargetChanged() -- muerto: sus DoTs ya no cuentan
         hasTarget = false
     end
-    local remaining, seconds = Dots.TargetRemaining(GetTime())
-    if remaining <= 0 then
+    local state = Dots.TargetState(GetTime())
+    if state.damage <= 0 then
         self:StopTicker()
     end
-    local preview = not db.locked
-    if not db.enabled or (not preview and (remaining <= 0 or not hasTarget)) then
+    local active = db.enabled and hasTarget and state.damage > 0
+
+    -- Marcas en las barras ajenas: solo con DoTs reales.
+    local used = {}
+    if active then
+        local damage = math.floor(state.damage)
+        for _, bar in ipairs(self:HostBars()) do
+            local marker = self:MarkerFor(bar)
+            if marker then
+                marker:Update("target", damage, UnitHealth("target"), UnitHealthMax("target"))
+                used[marker] = true
+            end
+        end
+    end
+    for _, marker in pairs(self.hostMarkers) do
+        if not used[marker] then
+            marker:Hide()
+        end
+    end
+
+    -- Panel.
+    local preview = db.enabled and not db.locked and not active
+    if not db.panel or not (active or preview) then
         frame:Hide()
         return
     end
-    local shown = remaining > 0 and math.floor(remaining) or PREVIEW
-    -- El objetivo muere si vida <= shown. La vida solo se entrega a las barras y al texto.
-    local life, lifeMax = PREVIEW + 1, PREVIEW * 2
+    if preview then
+        state = PREVIEW
+    end
+    local damage = math.floor(state.damage)
     if hasTarget then
-        life, lifeMax = UnitHealth("target"), UnitHealthMax("target")
-    end
-    self.cover:SetMinMaxValues(shown, shown + 1)
-    self.cover:SetValue(life)
-    self.health:SetMinMaxValues(0, lifeMax)
-    self.health:SetValue(life)
-    self.damage:SetMinMaxValues(0, lifeMax)
-    self.damage:SetValue(shown)
-    local detail = db.mode == "classic"
-    self.dotText:SetShown(detail)
-    self.healthText:SetShown(detail)
-    if detail then
-        self.dotText:SetFormattedText(L.DOTS_LEFT, AbbreviateNumbers(shown), seconds)
+        local life, lifeMax = UnitHealth("target"), UnitHealthMax("target")
+        self.panelBar:SetMinMaxValues(0, lifeMax)
+        self.panelBar:SetValue(life)
+        self.panelMarker:Update("target", damage, life, lifeMax)
         self.healthText:SetText(AbbreviateNumbers(life))
+    else
+        self.panelBar:SetMinMaxValues(0, damage * 2)
+        self.panelBar:SetValue(damage * 1.5)
+        self.panelMarker:Hide()
+        self.healthText:SetText("")
     end
+    self.header:SetFormattedText(L.HEADER, Abbrev(state.dps), Abbrev(damage))
+
+    local detail = db.mode == "classic"
+    local shownRows = detail and math.min(#state.list, MAX_ROWS) or 0
+    for i, row in ipairs(self.rows) do
+        local dot = i <= shownRows and state.list[i]
+        if dot then
+            row.icon:SetTexture(dot.icon or 134400) -- interrogación si no hay icono
+            row.name:SetText(dot.name)
+            row.info:SetFormattedText(L.ROW, dot.seconds, Abbrev(dot.dps))
+        end
+        row.icon:SetShown(dot and true or false)
+        row.name:SetShown(dot and true or false)
+        row.info:SetShown(dot and true or false)
+    end
+    frame:SetHeight(30 + shownRows * ROW + 2)
     frame:Show()
 end
 

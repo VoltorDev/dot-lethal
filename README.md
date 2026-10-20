@@ -1,47 +1,48 @@
 # DoTLetal
 
-Addon para World of Warcraft: Forever. Te dice si los DoTs que le has puesto al objetivo lo van a
-matar sin que le pegues más.
+Addon para World of Warcraft **retail** (Midnight, 12.1) y **Forever**. Mientras tus DoTs hacen daño:
 
-## Qué se ve
-
-Mientras tus DoTs hacen daño aparece un marco pequeño:
-
-- **Cuadro verde con un visto bueno**: lo que les queda a tus DoTs basta para matarlo. Puedes cambiar
-  de objetivo.
-- **Cuadro rojo**: no basta.
-- **Barra de la derecha**: en gris, la vida del objetivo; encima, en verde, el daño que les queda a tus
-  DoTs en la misma escala. Si el verde pasa del final del gris, muere.
-- **Texto** (modo Clásico): daño restante de los DoTs, segundos que les quedan y vida del objetivo.
+- **En la barra de vida del objetivo** (marco de objetivo, su placa y el panel del addon) pinta en
+  naranja el trozo de vida que se llevarán tus DoTs.
+- Pone una **calavera** a la izquierda de esa barra si tus DoTs bastan para matarlo.
+- Un **panel** dice cuánto daño por segundo le hacen tus DoTs y cuánto les queda en total, y debajo,
+  uno por línea, cada DoT con los segundos que le quedan y su daño por segundo.
 
 ## Cómo lo sabe (y por qué no hace la cuenta él)
 
-En Forever la vida de los enemigos es un **valor secreto**: un addon no puede compararla ni restarla.
-DoTLetal no la compara. Le pasa la vida a una barra cuyo rango va del daño restante R a R + 1. La barra
-la recorta: queda vacía (se ve el verde) si la vida es R o menos, y llena (tapa de rojo) si es más. El
-cálculo lo hace el propio juego al dibujar, que es lo que Blizzard permite.
+Desde Midnight la vida de los enemigos es un **valor secreto**: un addon no puede compararla ni
+restarla. DoTLetal no lo hace; le entrega la vida al juego:
+
+- **Pérdida**: una barra naranja anclada al final del relleno de la barra de vida, con el mismo
+  máximo y el daño de los DoTs como valor. Blizzard pinta así su predicción de curación.
+- **Calavera**: si la vida máxima del objetivo es legible, una curva escalonada sobre el porcentaje de
+  vida la muestra solo por debajo del daño de los DoTs. Si también es secreta, la decide una barra
+  invisible con rango [daño, daño + 1] que el juego recorta.
 
 El daño de los DoTs sí lo calcula el addon, con su propio reloj, porque en combate las auras del
 objetivo también son secretas:
 
 1. Al terminar de lanzar un DoT conocido, apunta la hora.
 2. Lee el daño total y la duración en la descripción del hechizo, que ya incluye tu poder con hechizos.
-3. Descuenta un tick cada X segundos.
+3. En retail aplica tu celeridad (los ticks van más rápido y hacen más daño en total) y la pandemia:
+   reaplicar conserva hasta el 30 % de la duración. La Agonía sube de escalón en cada tick.
 
 ## Uso
 
-- `/dotletal mover` desbloquea el marco (se ve con datos de muestra) para arrastrarlo; repítelo para
+- `/dotletal mover` desbloquea el panel (se ve con datos de muestra) para arrastrarlo; repítelo para
   bloquearlo.
 - `/dotletal lista` enseña los DoTs que sigue.
-- `/dotletal añadir 3 Nombre exacto` añade un DoT que no esté en la lista (aquí, un tick cada 3 s).
-  `/dotletal quitar Nombre exacto` lo quita.
-- `/dotletal` o el botón del compartimento de addons abre las opciones: activar, escala y modo.
+- `/dotletal añadir 2 Nombre exacto` añade un DoT que no esté en la lista (aquí, un tick cada 2 s sin
+  celeridad). `/dotletal quitar Nombre exacto` lo quita.
+- `/dotletal` o el botón del compartimento de addons abre las opciones: activar, escala, modo
+  (Clásico con la lista o Compacto con solo los totales) y si marcar el marco de objetivo y la placa.
 - `/dotletal traza` activa mensajes de depuración (por ejemplo, si no entiende la descripción de un DoT).
 - `/dotletal debug` saca el diagnóstico para informar de un problema.
 
-DoTs que trae de serie: Corrupción, Maldición de agonía (con sus ticks crecientes), Inmolar, Succionar
-vida, Palabra de las Sombras: dolor, Peste devoradora, Fuego lunar, Enjambre de insectos, Arañazo,
-Picadura de serpiente, Choque de llamas, Desgarrar, Garrote y Piroexplosión.
+DoTs de serie en retail: Agonía, Corrupción, Aflicción inestable, Succionar vida, Marchitar,
+Putrefacción de alma, Inmolar, Palabra de las Sombras: dolor, Toque vampírico, Peste devoradora,
+Fuego lunar, Fuego solar, Bengala estelar, Arañazo, Vapulear, Choque de llamas, Garrote, Desgarrar y
+Picadura de serpiente. En Forever, los equivalentes de Classic.
 
 ## Límites (conviene saberlos)
 
@@ -49,11 +50,11 @@ Picadura de serpiente, Choque de llamas, Desgarrar, Garrote y Piroexplosión.
 - **No sabe si el DoT ha entrado.** Si el objetivo lo resiste o es inmune, el addon lo cuenta igual.
 - **Supone que el DoT va al objetivo actual.** Lanzado por mouseover o foco, se apunta mal.
 - **Al cambiar de objetivo puede olvidarlo.** Si el juego oculta la identidad del PNJ (GUID secreto),
-  solo sigue al objetivo actual y borra sus DoTs al cambiar; si la identidad es legible, recuerda
-  cada objetivo.
-- Desgarro y Ruptura (dependen de los puntos de combo) y los efectos pasivos (Ignición, Heridas
-  profundas) no están.
-- Es una estimación: los ticks reales pueden variar algo respecto a la descripción.
+  solo sigue al objetivo actual y borra sus DoTs al cambiar.
+- **Es una estimación.** Críticos, maestría y otros modificadores que la descripción no recoge, y los
+  DoTs que dependen de los puntos de combo (Destripar, Ruptura), quedan fuera. La celeridad, si en
+  combate es secreta, se toma de la última lectura.
+- La placa se marca con las de Blizzard y con Plater; otras placas o marcos de unidad, no.
 
 ## Informar de un problema
 

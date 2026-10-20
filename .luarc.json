@@ -21,6 +21,7 @@
     "LE_EXPANSION_CLASSIC",
     "WOW_PROJECT_CAMELOT",
     "WOW_PROJECT_FOREVER",
-    "RegionalUniqueNamesEnabled"
+    "RegionalUniqueNamesEnabled",
+    "TargetFrame"
   ]
 }

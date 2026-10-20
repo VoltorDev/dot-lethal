@@ -223,6 +223,18 @@ local function newWidget(env, kind, name, parent, template)
     function m:GetPoint(i) local p = self._points[i or 1]; if p then return unpack(p, 1, p.n) end end
     function m:SetScale(scale) checkSecretArgs(kind, "SetScale", scale); self._scale = scale end
     function m:GetScale() return self._scale or 1 end
+    function m:SetSize(width, h) checkSecretArgs(kind, "SetSize", width, h); self._w, self._h = width, h end
+    function m:SetWidth(width) checkSecretArgs(kind, "SetWidth", width); self._w = width end
+    function m:SetHeight(h) checkSecretArgs(kind, "SetHeight", h); self._h = h end
+    function m:GetWidth() return self._w or 0 end
+    function m:GetHeight() return self._h or 0 end
+    function m:SetAlpha(a) checkSecretArgs(kind, "SetAlpha", a); self._alpha = a end
+    function m:GetAlpha() return self._alpha or 1 end
+    function m:GetStatusBarTexture()
+        if kind ~= "StatusBar" then return nil end
+        self._fill = self._fill or env:_NewWidget("Texture", nil, self)
+        return self._fill
+    end
     function m:SetFrameLevel(level) checkSecretArgs(kind, "SetFrameLevel", level); self._level = level end
     function m:GetFrameLevel() return self._level or 1 end
     function m:CreateTexture(n, _, tpl) return env:_NewWidget("Texture", n, self, tpl) end
@@ -798,7 +810,75 @@ function M.new(opts)
     G.C_Spell = {
         GetSpellName = function(id) local s = state.spells[id]; return s and s[1] end,
         GetSpellDescription = function(id) local s = state.spells[id]; return s and s[2] end,
+        GetSpellTexture = function(id) return state.spells[id] and 136000 + id end,
     }
+    -- Celeridad (UnitSpellHaste, en %): opts.haste; opts.secretHaste = true la devuelve secreta.
+    G.UnitSpellHaste = function()
+        local h = opts.haste or 0
+        if opts.secretHaste then return Secret.wrap(h) end
+        return h
+    end
+    -- Curvas (CurveUtilDocumentation.lua): Step "promociona con coincidencia exacta"; Linear
+    -- interpola. UnitHealthPercent(unit, usePredicted, curve) evalúa vida / máximo con la curva y
+    -- devuelve el color, secreto si hay restricciones (SecretReturns).
+    G.Enum.LuaCurveType = { Linear = 0, Step = 1, Cosine = 2, Cubic = 3 }
+    local function newColor(r, g, b, a)
+        local c = { r = r, g = g, b = b, a = a or 1 }
+        function c:GetRGBA() return self.r, self.g, self.b, self.a end
+        return c
+    end
+    G.CreateColor = newColor
+    G.C_CurveUtil = {
+        CreateColorCurve = function()
+            local curve = { points = {}, type = 0 }
+            function curve:SetType(t) self.type = t end
+            function curve:ClearPoints() self.points = {} end
+            function curve:AddPoint(x, y)
+                checkSecretArgs("Curve", "AddPoint", x)
+                self.points[#self.points + 1] = { x = x, y = y }
+                table.sort(self.points, function(p, q) return p.x < q.x end)
+            end
+            function curve:_Evaluate(x)
+                local pick = self.points[1]
+                for _, p in ipairs(self.points) do
+                    if p.x <= x then pick = p end
+                end
+                return pick and pick.y
+            end
+            return curve
+        end,
+    }
+    G.UnitHealthPercent = function(unit, _, curve)
+        local h = healthOf(unit)
+        local p = h[2] > 0 and h[1] / h[2] or 0
+        if not curve then return secretsOn and Secret.wrap(p) or p end
+        local color = curve:_Evaluate(p)
+        if not secretsOn then return color end
+        local r, g, b, a = color:GetRGBA()
+        return newColor(Secret.wrap(r), Secret.wrap(g), Secret.wrap(b), Secret.wrap(a))
+    end
+    -- Placa: opts.nameplate = true crea una placa de Blizzard para "target".
+    -- TargetFrame existe siempre, como en el cliente (opts.targetFrame = false lo quita), con su
+    -- barra de vida en la ruta de Mainline.
+    G.C_NamePlate = {
+        GetNamePlateForUnit = function(unit)
+            if unit ~= "target" or not opts.nameplate or not state.target.exists then return nil end
+            if not state.plate then
+                local plate = env:_NewWidget("Frame", nil, env.UIParent)
+                plate.UnitFrame = env:_NewWidget("Button", nil, plate)
+                plate.UnitFrame.healthBar = env:_NewWidget("StatusBar", nil, plate.UnitFrame)
+                state.plate = plate
+            end
+            return state.plate
+        end,
+    }
+    if opts.targetFrame ~= false then
+        local tf = env:_NewWidget("Button", "TargetFrame", nil)
+        tf.TargetFrameContent = { TargetFrameContentMain = { HealthBarsContainer = {} } }
+        local bar = env:_NewWidget("StatusBar", nil, tf)
+        bar:SetSize(126, 20)
+        tf.TargetFrameContent.TargetFrameContentMain.HealthBarsContainer.HealthBar = bar
+    end
     -- stylua: ignore end
 
     -- Las funciones del cliente (las de G que no son utilidades Lua) rechazan secretos salvo las

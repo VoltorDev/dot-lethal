@@ -12,6 +12,9 @@ ns.DEFAULTS = {
     scale = 1,
     mode = "classic",
     locked = true,
+    panel = true, -- panel propio con la lista de DoTs
+    targetFrame = true, -- marca en la barra de vida del marco de objetivo
+    nameplate = true, -- marca en la placa del objetivo
     debug = false,
     frame = { point = "CENTER", relativePoint = "CENTER", x = 0, y = -180 },
     custom = {}, -- DoTs añadidos a mano: nombre del hechizo -> segundos entre ticks

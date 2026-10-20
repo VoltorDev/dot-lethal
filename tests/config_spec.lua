@@ -21,7 +21,7 @@ describe("opciones en Settings", function()
         assert.are.equal(0, countKeys(registry.settings))
 
         env:Fire("ADDON_LOADED", env:AddonName(), false)
-        assert.are.equal(3, countKeys(registry.settings))
+        assert.are.equal(5, countKeys(registry.settings))
         assert.are.equal(1, #registry.addOnCategories)
         assert.are.equal(ns.settingsCategory, registry.addOnCategories[1])
         assert.are.equal(ns.L.ADDON_TITLE, ns.settingsCategory:GetName())
@@ -30,6 +30,8 @@ describe("opciones en Settings", function()
             Enabled = { "enabled", "boolean" },
             Scale = { "scale", "number" },
             Mode = { "mode", "string" },
+            TargetFrame = { "targetFrame", "boolean" },
+            Nameplate = { "nameplate", "boolean" },
         }
         for suffix, info in pairs(expected) do
             local setting = registry.settings[env:AddonName() .. "_" .. suffix]
@@ -41,13 +43,13 @@ describe("opciones en Settings", function()
         assert.are.equal(1.25, registry.settings[env:AddonName() .. "_Scale"]:GetValue()) -- no pisa lo guardado
     end)
 
-    it("crea un control por ajuste: casilla, deslizador y desplegable", function()
+    it("crea un control por ajuste: casillas, deslizador y desplegable", function()
         local env = WowEnv.boot(TOC)
         local kinds = {}
         for _, control in ipairs(env:SettingsRegistry().controls) do
             kinds[#kinds + 1] = control.kind
         end
-        assert.are.same({ "Checkbox", "Slider", "Dropdown" }, kinds)
+        assert.are.same({ "Checkbox", "Slider", "Dropdown", "Checkbox", "Checkbox" }, kinds)
     end)
 
     it("el desplegable ofrece el modo por defecto y el deslizador formatea con dos decimales", function()
@@ -82,7 +84,7 @@ describe("opciones en Settings", function()
         assert.is_false(frame:IsShown())
 
         settings[env:AddonName() .. "_Enabled"]:SetValue(true)
-        local text = env:Widgets("FontString", frame)[1]
+        local text = env:Widgets("FontString", frame)[3] -- primera fila de la lista
         assert.is_true(text:IsShown())
         settings[env:AddonName() .. "_Mode"]:SetValue("compact")
         assert.is_false(text:IsShown())

@@ -4,29 +4,33 @@
 
 ## Objetivo
 
-Con un vistazo, saber si los DoTs propios que lleva el objetivo lo matan sin volver a pegarle.
+En retail y en Forever, de un vistazo: cuánto daño por segundo le hacen al objetivo los DoTs
+propios, cuánto le queda a cada uno, qué parte de su vida se llevarán, y una calavera si lo matan.
 
 ## Estado
 
 | Pieza | Implementado | Verificado |
 |---|---|---|
-| Lectura de daño y duración en la descripción del hechizo (inglés y español, golpe directo + DoT, modo por tick) | Sí | Tests con descripciones de Classic. **Sin probar con las descripciones reales de Forever** |
-| Reloj propio por DoT, ticks con peso (Maldición de agonía), reaplicar | Sí | Tests fuera del juego |
-| Seguimiento por objetivo (por GUID si es legible; si es secreto, solo el actual) | Sí | Tests con GUID legible y secreto |
-| Veredicto por recorte de la barra (`SetMinMaxValues(R, R + 1)` + `SetValue(vida secreta)`) | Sí | Mock de secretos: la vida nunca se compara en Lua y las mutaciones que lo intentan fallan. **Sin ver en el cliente** |
-| Barra de vida con el daño de los DoTs superpuesto, textos, mover y bloquear, opciones | Sí | Tests fuera del juego |
+| Carga en retail (12.1, `standard`) y Forever (`camelot`/`forever`) | Sí | Cliente simulado de las dos. Enlazado en `_retail_` y `_forever_`. **Sin cargar en el juego** |
+| Lectura de daño y duración en la descripción (inglés y español, golpe directo + DoT, modo por tick) | Sí | Tests con descripciones inventadas con la forma de las reales. **Sin probar con las descripciones reales** |
+| Reloj por DoT: celeridad con último tick parcial, pandemia del 30 %, rampa de Agonía, pesos de Classic | Sí | Tests fuera del juego. Los periodos de tick de retail son de memoria |
+| Daño por segundo total y por DoT; segundos restantes por DoT | Sí | Tests del panel |
+| Pérdida en naranja sobre la barra del marco de objetivo, de la placa (Blizzard o Plater) y del panel | Sí | Mock: la vida nunca se compara en Lua y la barra se ancla al relleno. **Sin ver en el cliente** |
+| Calavera: por curva si la vida máxima es legible; por barra compuerta si es secreta | Sí | Mock de los dos caminos. **Sin ver en el cliente** |
 
 ## Pendiente
 
-1. **Probar en el cliente** (lo primero). Es lo que decide si funciona:
+1. **Probar en retail con Brujete (aflicción)**. Es lo que decide si funciona:
    - Reiniciar el cliente la primera vez, ya que el addon es nuevo.
-   - `/dotletal lista`: que salgan los nombres. Si falta alguno, el spellID de Classic no existe en
-     Forever; buscar el bueno o añadirlo con `/dotletal añadir`.
-   - `/dotletal traza` y lanzar cada DoT a un muñeco: si no reconoce la descripción, la traza la enseña;
-     ajustar `Dots.ParseDescription` con el texto real.
-   - Con un enemigo bajo de vida, comprobar que el cuadro pasa de rojo a verde. Este es el punto
-     incierto: que la barra recorte la vida secreta a su rango igual que lo hace con un número.
-   - `/dump issecretvalue(UnitGUID("target"))` en el mundo y en mazmorra, para saber qué modo de
-     seguimiento usa en cada sitio.
-2. Detectar resistencias o inmunidades: hoy se cuenta el DoT aunque no entre.
-3. Desgarro y Ruptura (dependen de los puntos de combo), si se juega druida feral o pícaro.
+   - `/dotletal lista`: que salgan Agonía, Corrupción, Aflicción inestable… Si falta alguno, su spellID
+     no es el bueno; añadirlo con `/dotletal añadir`.
+   - `/dotletal traza` y lanzar cada DoT a un muñeco: si no reconoce la descripción, la traza la
+     enseña. Comparar el daño por segundo del panel con el que da Details en el muñeco.
+   - Ver la franja naranja al final de la vida en el marco de objetivo y en la placa de Plater. Es el
+     punto incierto: que un marco de addon pueda anclarse al relleno de una barra con vida secreta.
+   - Bajar un enemigo hasta que salga la calavera.
+   - `/dump issecretvalue(UnitHealthMax("target"))` en el mundo y en mazmorra, para saber qué camino
+     de la calavera se usa en cada sitio.
+2. Lo mismo en Forever a partir del 05-11-2026.
+3. Detectar resistencias o inmunidades: hoy se cuenta el DoT aunque no entre.
+4. Destripar y Ruptura (dependen de los puntos de combo), si se juega druida feral o pícaro.

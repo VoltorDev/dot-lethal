@@ -23,7 +23,13 @@ globals = {
 -- API de WoW que el addon lee. Añade aquí cada global nueva que uses.
 read_globals = {
     "AbbreviateNumbers",
+    "C_CurveUtil",
+    "C_NamePlate",
     "C_Spell",
+    "CreateColor",
+    "TargetFrame",
+    "UnitHealthPercent",
+    "UnitSpellHaste",
     "C_Timer",
     "GetTime",
     "UnitCanAttack",
