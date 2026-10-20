@@ -21,8 +21,9 @@ propios, cuánto le queda a cada uno, qué parte de su vida se llevarán, y una 
 
 ## Pendiente
 
-1. **Probar en retail con Brujete (aflicción)**. Es lo que decide si funciona; el 20-10-2026 no se pudo
-   hacer desde Claude porque no se concedió el control de Battle.net y WoW:
+1. **Probar en retail con Brujete (aflicción)**. El 21-10-2026 Nico lo probó y dice que «parece que va
+   bien», sin datos concretos; Claude no pudo verlo (sin acceso a `wow.exe` por control remoto). Falta
+   confirmar cada punto:
    - Reiniciar el cliente la primera vez, ya que el addon es nuevo.
    - `/dotletal lista`: que salgan Agonía, Corrupción, Aflicción inestable… Si falta alguno, su spellID
      no es el bueno; añadirlo con `/dotletal añadir`.
