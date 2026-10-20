@@ -40,9 +40,10 @@ objetivo también son secretas:
 - `/dotletal debug` saca el diagnóstico para informar de un problema.
 
 DoTs de serie en retail: Agonía, Corrupción, Aflicción inestable, Succionar vida, Marchitar,
-Putrefacción de alma, Inmolar, Palabra de las Sombras: dolor, Toque vampírico, Peste devoradora,
-Fuego lunar, Fuego solar, Bengala estelar, Arañazo, Vapulear, Choque de llamas, Garrote, Desgarrar y
-Picadura de serpiente. En Forever, los equivalentes de Classic.
+Putrefacción de alma, Inmolar, Palabra de las Sombras: dolor, Toque vampírico, Palabra de las Sombras:
+locura, Fuego lunar, Fuego solar, Centella estelar, Arañazo, Vapulear, Choque de llamas, Garrote,
+Desgarrar y Picadura de serpiente. Sus ID y periodos de tick salen de las tablas del juego (12.1.5). En
+Forever, los equivalentes de Classic.
 
 ## Límites (conviene saberlos)
 

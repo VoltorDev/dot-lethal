@@ -12,15 +12,17 @@ propios, cuánto le queda a cada uno, qué parte de su vida se llevarán, y una 
 | Pieza | Implementado | Verificado |
 |---|---|---|
 | Carga en retail (12.1, `standard`) y Forever (`camelot`/`forever`) | Sí | Cliente simulado de las dos. Enlazado en `_retail_` y `_forever_`. **Sin cargar en el juego** |
-| Lectura de daño y duración en la descripción (inglés y español, golpe directo + DoT, modo por tick) | Sí | Tests con descripciones inventadas con la forma de las reales. **Sin probar con las descripciones reales** |
-| Reloj por DoT: celeridad con último tick parcial, pandemia del 30 %, rampa de Agonía, pesos de Classic | Sí | Tests fuera del juego. Los periodos de tick de retail son de memoria |
+| Lectura de daño y duración en la descripción (inglés y español, golpe directo + DoT, por tick, mayor número) | Sí | Tests con los textos reales de retail en español (Wowhead, 20-10-2026) con números en lugar de fórmulas. **Sin probar con lo que devuelve el cliente** |
+| Reloj por DoT: celeridad con último tick parcial, pandemia del 30 %, rampa de Agonía (x8), pesos de Classic | Sí | Tests fuera del juego. ID y periodos de retail sacados de SkillLineAbility, TraitDefinition y SpellEffect (wago.tools, 20-10-2026); los de Arañazo y Picadura de serpiente, de memoria |
+| APIs usadas, contra la interfaz de retail 12.1.5 (build 70448) | Sí | Existen todas con las mismas marcas de secreto; ruta de la barra del marco de objetivo y `UnitFrame.healthBar` de las placas comprobadas. Retail documenta los anclajes secretos (`IsAnchoringSecret`), que es lo que usa la franja naranja |
 | Daño por segundo total y por DoT; segundos restantes por DoT | Sí | Tests del panel |
 | Pérdida en naranja sobre la barra del marco de objetivo, de la placa (Blizzard o Plater) y del panel | Sí | Mock: la vida nunca se compara en Lua y la barra se ancla al relleno. **Sin ver en el cliente** |
 | Calavera: por curva si la vida máxima es legible; por barra compuerta si es secreta | Sí | Mock de los dos caminos. **Sin ver en el cliente** |
 
 ## Pendiente
 
-1. **Probar en retail con Brujete (aflicción)**. Es lo que decide si funciona:
+1. **Probar en retail con Brujete (aflicción)**. Es lo que decide si funciona; el 20-10-2026 no se pudo
+   hacer desde Claude porque no se concedió el control de Battle.net y WoW:
    - Reiniciar el cliente la primera vez, ya que el addon es nuevo.
    - `/dotletal lista`: que salgan Agonía, Corrupción, Aflicción inestable… Si falta alguno, su spellID
      no es el bueno; añadirlo con `/dotletal añadir`.

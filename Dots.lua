@@ -17,8 +17,11 @@ ns.Dots = Dots
 --   weights: pesos fijos por tick (Maldición de agonía de Classic: los últimos pesan más).
 --   ramp:    el daño sube un escalón por tick hasta `ramp` (Agonía de retail); reaplicarla
 --            conserva el escalón.
--- Los ID y los periodos son de memoria (INFERENCIA): /dotletal lista enseña cuáles existen en el
--- cliente y /dotletal añadir completa los que falten.
+-- Retail: ID que el jugador aprende (SkillLineAbility y TraitDefinition) y periodos de su aura de
+-- daño periódico (SpellEffect.EffectAuraPeriod), de las tablas del juego en wago.tools, y textos en
+-- español de Wowhead, consultados el 20-10-2026 (12.1.5). Forever: ID de Classic, de memoria
+-- (INFERENCIA). /dotletal lista enseña cuáles existen en el cliente y /dotletal añadir completa
+-- los que falten.
 local AGONY_CLASSIC = { 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 1.5, 1.5, 1.5, 1.5 }
 -- stylua: ignore start
 Dots.CATALOGS = {
@@ -39,25 +42,25 @@ Dots.CATALOGS = {
         [11366] = { period = 3 },                           -- Piroexplosión
     },
     Retail = {
-        [980]    = { period = 2, ramp = 10 },  -- Agonía
-        [172]    = { period = 2 },             -- Corrupción
-        [316099] = { period = 2 },             -- Aflicción inestable
-        [63106]  = { period = 3 },             -- Succionar vida
-        [445468] = { period = 2 },             -- Marchitar (Hellcaller)
-        [386997] = { period = 2 },             -- Putrefacción de alma
-        [348]    = { period = 3 },             -- Inmolar
-        [589]    = { period = 2 },             -- Palabra de las Sombras: dolor
-        [34914]  = { period = 3 },             -- Toque vampírico
-        [335467] = { period = 3 },             -- Peste devoradora
-        [8921]   = { period = 2 },             -- Fuego lunar
-        [93402]  = { period = 2 },             -- Fuego solar
-        [202347] = { period = 2 },             -- Bengala estelar
-        [1822]   = { period = 3 },             -- Arañazo
-        [106830] = { period = 3 },             -- Vapulear (felino)
-        [188389] = { period = 2 },             -- Choque de llamas
-        [703]    = { period = 2 },             -- Garrote
-        [772]    = { period = 3 },             -- Desgarrar
-        [271788] = { period = 3 },             -- Picadura de serpiente
+        [980]     = { period = 2, ramp = 8 },          -- Agonía ("hasta": con el escalón máximo, x8)
+        [172]     = { period = 2 },                    -- Corrupción
+        [1259790] = { period = 2 },                    -- Aflicción inestable
+        [63106]   = { period = 3 },                    -- Succionar vida
+        [445468]  = { period = 2 },                    -- Marchitar (Hellcaller)
+        [386997]  = { period = 2, mode = "max" },      -- Putrefacción de alma (objetivo principal)
+        [118297]  = { period = 3 },                    -- Inmolar
+        [589]     = { period = 2 },                    -- Palabra de las Sombras: dolor
+        [34914]   = { period = 3 },                    -- Toque vampírico
+        [335467]  = { period = 2 },                    -- Palabra de las Sombras: locura
+        [8921]    = { period = 2 },                    -- Fuego lunar
+        [93402]   = { period = 2 },                    -- Fuego solar
+        [202347]  = { period = 2 },                    -- Centella estelar
+        [1822]    = { period = 3 },                    -- Arañazo (periodo de memoria)
+        [106830]  = { period = 3 },                    -- Vapulear (felino)
+        [470411]  = { period = 2 },                    -- Choque de llamas
+        [703]     = { period = 2 },                    -- Garrote
+        [772]     = { period = 3 },                    -- Desgarrar
+        [271788]  = { period = 3 },                    -- Picadura de serpiente (periodo de memoria)
     },
 }
 -- stylua: ignore end
@@ -84,13 +87,20 @@ local function Numbers(text)
         -- Unidad de tiempo detrás del número: "sec", "seg", "s" suelta (también tras espacio duro).
         local spaced = after:match("^[%s\194\160]*(.*)$")
         local isTime = spaced:match("^se[cg]") ~= nil or spaced:match("^s[^%a]") ~= nil or spaced == "s"
-        list[#list + 1] = { value = tonumber((digits:gsub("[%.,]", ""))), time = isTime }
+        list[#list + 1] = {
+            value = tonumber((digits:gsub("[%.,]", ""))),
+            time = isTime,
+            percent = spaced:match("^%%") ~= nil, -- "un 30 % del daño": no es daño
+        }
     end
     return list
 end
 
--- Devuelve daño total y duración (segundos) de un DoT a partir de su descripción, o nil.
+-- Devuelve daño total y duración (segundos) de un DoT a partir de su descripción, o nil. Los
+-- porcentajes no cuentan como daño.
 --   total: el número justo antes de la primera duración ("y otros 20 de daño durante 15 s" -> 20).
+--   max:   el mayor número antes de la primera duración ("hasta 4 objetivos [...]; el principal
+--          recibe 32 y los secundarios, 16, durante 8 s" -> 32).
 --   tick:  el primer número es el daño de cada tick; la duración, la última que aparezca.
 function Dots.ParseDescription(text, mode, period)
     if type(text) ~= "string" or text == "" then
@@ -102,7 +112,7 @@ function Dots.ParseDescription(text, mode, period)
         for _, n in ipairs(numbers) do
             if n.time then
                 duration = n.value
-            elseif not tick then
+            elseif not tick and not n.percent then
                 tick = n.value
             end
         end
@@ -111,13 +121,17 @@ function Dots.ParseDescription(text, mode, period)
         end
         return nil
     end
-    for i, n in ipairs(numbers) do
+    local largest, last
+    for _, n in ipairs(numbers) do
         if n.time then
-            local before = numbers[i - 1]
-            if before and not before.time then
-                return before.value, n.value
+            local damage = (mode == "max") and largest or last
+            if damage then
+                return damage, n.value
             end
             return nil
+        elseif not n.percent then
+            largest = math.max(largest or n.value, n.value)
+            last = n.value
         end
     end
     return nil
@@ -161,11 +175,15 @@ function Dots.Remaining(entry, now)
 end
 
 -- Daño de un tick con peso 1: el total de la descripción repartido entre sus ticks sin celeridad.
-local function TickUnit(def, total, duration, level)
+-- Con rampa, la descripción da el máximo ("hasta"): todos los ticks en el escalón más alto.
+local function TickUnit(def, total, duration)
     local ticks = math.max(1, math.floor(duration / def.period + 0.5))
+    if def.ramp then
+        return total / (ticks * def.ramp)
+    end
     local sum = 0
     for k = 1, ticks do
-        sum = sum + Weight({ weights = def.weights, ramp = def.ramp, level = level }, k)
+        sum = sum + Weight({ weights = def.weights }, k)
     end
     return total / sum
 end
@@ -193,7 +211,7 @@ function Dots.NewEntry(def, description, now, haste, previous)
         start = now,
         duration = duration,
         interval = def.period / (1 + (haste or 0)),
-        unit = TickUnit(def, total, base, 0),
+        unit = TickUnit(def, total, base),
         weights = def.weights,
         ramp = def.ramp,
         level = level,

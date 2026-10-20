@@ -73,6 +73,74 @@ describe("Dots.ParseDescription", function()
     end)
 end)
 
+-- Textos reales de retail en español (Wowhead, 20-10-2026, 12.1.5) con números en lugar de las
+-- fórmulas de poder con hechizos, como los da GetSpellDescription en el cliente.
+describe("descripciones reales de retail en español", function()
+    local Dots
+
+    setup(function()
+        local _, ns = boot()
+        Dots = ns.Dots
+    end)
+
+    local cases = {
+        {
+            "Corrupción",
+            "Corrompe al objetivo, que recibe 1.200 p. de daño de las Sombras y 7.900 p. más de daño de las Sombras"
+                .. " durante 14 s.",
+            { 7900, 14 },
+        },
+        {
+            "Inmolar",
+            "Quema al enemigo, lo que inflige 2.800 p. de daño de Fuego inmediatamente y 10.500 p. de daño de Fuego"
+                .. " extras durante 18 s. El daño periódico genera 1 trozo de fragmento de alma.",
+            { 10500, 18 },
+        },
+        {
+            "Agonía",
+            "Provoca una agonía creciente en el objetivo que inflige hasta 20.100 p. de daño de las Sombras durante"
+                .. " 18 s. El daño empieza siendo bajo y aumenta progresivamente.",
+            { 20100, 18 },
+        },
+        {
+            "Toque vampírico",
+            "Un toque de la oscuridad que inflige 49 p. de daño de las Sombras durante 21 s y te sana una cantidad de"
+                .. " salud equivalente al 30% del daño infligido. Si Toque vampírico se disipa, el disipador huye"
+                .. " horrorizado durante 3 s.",
+            { 49, 21 },
+        },
+        {
+            "Succionar vida",
+            "Succiona la esencia vital del objetivo, lo que le inflige 25 p. de daño de las Sombras durante 15 s y te"
+                .. " sana un 30% del daño infligido.",
+            { 25, 15 },
+        },
+        {
+            "Choque de llamas",
+            "Abrasa al objetivo y le inflige 670 p. de daño Volcánico y 3.600 p. de daño Volcánico más a lo largo de"
+                .. " 18 s.",
+            { 3600, 18 },
+        },
+        {
+            "un porcentaje justo antes de la duración no es el daño",
+            "Inflige 500 p. de daño y reduce la velocidad de movimiento un 20% durante 12 s.",
+            { 500, 12 },
+        },
+    }
+    for _, case in ipairs(cases) do
+        it(case[1], function()
+            assert.are.same(case[3], { Dots.ParseDescription(case[2]) })
+        end)
+    end
+
+    it("Putrefacción de alma: el daño del objetivo principal, no el de los secundarios ni el 4", function()
+        local text = "Marchita la fuerza vital de tu objetivo actual y de hasta 4 objetivos adicionales cercanos, lo"
+            .. " que provoca que el objetivo principal reciba 32 p. de daño de las Sombras y los objetivos"
+            .. " secundarios, 16 p. de daño de las Sombras durante 8 s."
+        assert.are.same({ 32, 8 }, { Dots.ParseDescription(text, "max") })
+    end)
+end)
+
 describe("Dots.Remaining", function()
     local Dots
 
@@ -226,6 +294,15 @@ describe("reglas de retail", function()
         env:Cast(172)
         dot = ns.Dots.TargetState(env.GetTime()).list[1]
         assert.is_true(math.abs(dot.seconds - 16.2) < 1e-6)
+    end)
+
+    it("Agonía: «hasta» es con el escalón máximo; empieza en el 1", function()
+        local env, ns = bootRetail()
+        env:Cast(980)
+        local state = ns.Dots.TargetState(env.GetTime())
+        local unit = 1800 / (9 * 8) -- 9 ticks, x8
+        assert.is_true(math.abs(state.list[1].dps - unit / 2) < 1e-6)
+        assert.is_true(math.abs(state.damage - unit * (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 8)) < 1e-6)
     end)
 
     it("Agonía sube de escalón por tick y reaplicarla lo conserva", function()
