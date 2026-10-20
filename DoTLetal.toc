@@ -1,0 +1,32 @@
+## Interface: 16001
+## AllowLoadGameType: camelot, forever
+## ExcludeLoadGameType: standard, classic
+## Title: DoTLetal
+## Notes: Tells you whether your DoTs will kill your target.
+## Notes-esES: Te dice si tus DoTs van a matar al objetivo.
+## Notes-esMX: Te dice si tus DoTs van a matar al objetivo.
+## Author: Nico
+## Version: @project-version@
+## IconTexture: Interface\Icons\Spell_Shadow_ShadowWordPain
+## SavedVariables: DoTLetalDB
+## SavedVariablesPerCharacter: DoTLetalCharDB
+## AddonCompartmentFunc: DoTLetal_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: DoTLetal_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: DoTLetal_OnAddonCompartmentLeave
+## X-Game: [Game]
+## X-Family: [Family]
+## X-Flavor: Forever
+## X-License: MIT
+## X-Curse-Project-ID: 0
+## X-Wago-ID: 0
+
+Locales\enUS.lua
+Locales\esES.lua
+Detect.lua
+Identity.lua
+Secrets.lua
+Core.lua
+Config.lua
+Slash.lua
+Dots.lua
+Modules\Indicator.lua
