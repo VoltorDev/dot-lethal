@@ -34,8 +34,10 @@ objetivo también son secretas:
 - `/dotletal lista` enseña los DoTs que sigue.
 - `/dotletal añadir 2 Nombre exacto` añade un DoT que no esté en la lista (aquí, un tick cada 2 s sin
   celeridad). `/dotletal quitar Nombre exacto` lo quita.
-- `/dotletal` o el botón del compartimento de addons abre las opciones: activar, escala, modo
-  (Clásico con la lista o Compacto con solo los totales) y si marcar el marco de objetivo y la placa.
+- `/dotletal` o el botón del compartimento de addons abre las opciones (Opciones > AddOns > DoTLetal), con todo
+  lo de los comandos: activar, escala, modo (Clásico con la lista o Compacto con solo los totales), marcar el
+  marco de objetivo y la placa, bloquear el panel, traza, ver los DoTs que sigue, **añadir el último hechizo que
+  lanzaste** (con sus segundos entre ticks), quitar uno añadido, diagnóstico y restablecer (con confirmación).
 - `/dotletal traza` activa mensajes de depuración (por ejemplo, si no entiende la descripción de un DoT).
 - `/dotletal debug` saca el diagnóstico para informar de un problema.
 

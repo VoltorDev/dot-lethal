@@ -252,6 +252,18 @@ function Dots.Rebuild(custom)
     end
 end
 
+-- DoTs añadidos a mano (db.custom), por orden: { { name, period } }.
+function Dots.Custom(custom)
+    local list = {}
+    for name, period in pairs(custom or {}) do
+        list[#list + 1] = { name = name, period = period }
+    end
+    table.sort(list, function(a, b)
+        return a.name < b.name
+    end)
+    return list
+end
+
 function Dots.Known()
     local list = {}
     for name, def in pairs(byName) do
@@ -274,9 +286,21 @@ function Dots.OnTargetChanged()
     currentKey = UnitExists("target") and TargetKey() or nil
 end
 
+-- Nombre del último hechizo que lanzó el jugador, sea o no un DoT: el menú de opciones lo ofrece para
+-- añadirlo a la lista sin escribirlo.
+local lastCast
+
+function Dots.LastCast()
+    return lastCast
+end
+
 -- Devuelve true si el hechizo era un DoT y se ha apuntado.
 function Dots.OnCast(spellID, now)
-    if issecretvalue(spellID) or not UnitExists("target") or UnitIsDeadOrGhost("target") then
+    if issecretvalue(spellID) then
+        return false
+    end
+    lastCast = C_Spell.GetSpellName(spellID) or lastCast
+    if not UnitExists("target") or UnitIsDeadOrGhost("target") then
         return false
     end
     local attackable = UnitCanAttack("player", "target")

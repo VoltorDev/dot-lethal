@@ -293,6 +293,8 @@ local function newSettings(state)
         Default = { True = true, False = false },
     }
 
+    -- Cada categoría trae su lista vertical (layout): AddInitializer apunta botones y cabeceras en
+    -- registry.controls, en el orden en que se añaden, igual que los controles de los ajustes.
     local function newCategory(name, parent)
         local category = { name = name, parent = parent, id = #registry.categories + 1 }
         function category:GetID()
@@ -301,8 +303,14 @@ local function newSettings(state)
         function category:GetName()
             return self.name
         end
+        local layout = {}
+        function layout:AddInitializer(initializer)
+            initializer.category = category
+            registry.controls[#registry.controls + 1] = initializer
+        end
+        category.layout = layout
         registry.categories[#registry.categories + 1] = category
-        return category
+        return category, layout
     end
     function S.RegisterVerticalLayoutCategory(name)
         return newCategory(name)
@@ -357,6 +365,54 @@ local function newSettings(state)
                 end
                 self.variableTbl[self.variableKey] = value
             end
+            for _, callback in ipairs(self.callbacks) do
+                callback(self, value)
+            end
+        end
+        function setting:SetValueChangedCallback(callback)
+            self.callbacks[#self.callbacks + 1] = callback
+        end
+        registry.settings[variable] = setting
+        return setting
+    end
+
+    -- Settings.RegisterProxySetting (Blizzard_Settings.lua:177): lee y escribe con funciones, sin tabla.
+    function S.RegisterProxySetting(category, variable, variableType, name, defaultValue, getValue, setValue)
+        if registry.settings[variable] then
+            error(("Setting variable '%s' was previously registered."):format(variable), 2)
+        end
+        local setting = {
+            category = category,
+            variable = variable,
+            variableType = variableType,
+            name = name,
+            defaultValue = defaultValue,
+            proxy = true,
+            callbacks = {},
+        }
+        function setting:GetVariable()
+            return self.variable
+        end
+        function setting:GetName()
+            return self.name
+        end
+        function setting:GetVariableType()
+            return self.variableType
+        end
+        function setting:GetValue()
+            return getValue()
+        end
+        function setting:SetValue(value)
+            if type(value) ~= self.variableType then
+                error(
+                    ("SetValue '%s' requires '%s' type, not '%s' type."):format(
+                        self.name,
+                        self.variableType,
+                        type(value)
+                    )
+                )
+            end
+            setValue(value)
             for _, callback in ipairs(self.callbacks) do
                 callback(self, value)
             end
@@ -910,6 +966,18 @@ function M.new(opts)
     end
     local Settings, settingsRegistry = newSettings(state)
     rawset(env, "Settings", Settings)
+    -- Inicializadores de botón y de cabecera (Blizzard_SettingControls.lua:910 y :112) y el diálogo de
+    -- confirmación genérico (StaticPopup.lua:217). El diálogo se guarda en registry.confirm: el test lo acepta.
+    rawset(env, "CreateSettingsButtonInitializer", function(name, buttonText, buttonClick, tooltip, addSearchTags)
+        assert(addSearchTags ~= nil, "addSearchTags es obligatorio")
+        return { kind = "Button", name = name, buttonText = buttonText, click = buttonClick, tooltip = tooltip }
+    end)
+    rawset(env, "CreateSettingsListSectionHeaderInitializer", function(name, tooltip)
+        return { kind = "Header", name = name, tooltip = tooltip }
+    end)
+    rawset(env, "StaticPopup_ShowGenericConfirmation", function(text, callback)
+        settingsRegistry.confirm = { text = text, accept = callback }
+    end)
     rawset(env, "MinimalSliderWithSteppersMixin", {
         Label = { Left = 1, Right = 2, Top = 3, Min = 4, Max = 5 }, -- EnumUtil.MakeEnum del clon
     })

@@ -18,6 +18,7 @@ propios, cuánto le queda a cada uno, qué parte de su vida se llevarán, y una 
 | Daño por segundo total y por DoT; segundos restantes por DoT | Sí | Tests del panel |
 | Pérdida en naranja sobre la barra del marco de objetivo, de la placa (Blizzard o Plater) y del panel | Sí | Mock: la vida nunca se compara en Lua y la barra se ancla al relleno. **Sin ver en el cliente** |
 | Calavera: por curva si la vida máxima es legible; por barra compuerta si es secreta | Sí | Mock de los dos caminos. **Sin ver en el cliente** |
+| Menú de opciones con todo lo de `/dotletal` (21-10-2026); añadir un DoT = el último hechizo lanzado | Sí | 4 tests nuevos (128 en total). **Sin ver en el cliente** |
 
 ## Pendiente
 

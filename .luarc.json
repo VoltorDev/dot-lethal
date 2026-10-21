@@ -22,6 +22,9 @@
     "WOW_PROJECT_CAMELOT",
     "WOW_PROJECT_FOREVER",
     "RegionalUniqueNamesEnabled",
-    "TargetFrame"
+    "TargetFrame",
+    "CreateSettingsButtonInitializer",
+    "CreateSettingsListSectionHeaderInitializer",
+    "StaticPopup_ShowGenericConfirmation"
   ]
 }

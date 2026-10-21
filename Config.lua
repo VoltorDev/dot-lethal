@@ -7,7 +7,7 @@ local module = ns:NewModule("Config")
 -- en la tabla si la clave es nil: hay que hacerlo DESPUÉS de cargar las SavedVariables.
 function module:OnInitialize()
     local db = ns.db
-    local category = Settings.RegisterVerticalLayoutCategory(L.ADDON_TITLE)
+    local category, layout = Settings.RegisterVerticalLayoutCategory(L.ADDON_TITLE)
 
     local function OnSettingChanged()
         ns:ApplySettings()
@@ -83,8 +83,128 @@ function module:OnInitialize()
     nameplate:SetValueChangedCallback(OnSettingChanged)
     Settings.CreateCheckbox(category, nameplate, L.OPT_NAMEPLATE_TT)
 
+    -- /dotletal mover y /dotletal traza.
+    local locked = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_Locked",
+        "locked",
+        db,
+        Settings.VarType.Boolean,
+        L.OPT_LOCKED,
+        ns.DEFAULTS.locked
+    )
+    locked:SetValueChangedCallback(OnSettingChanged)
+    Settings.CreateCheckbox(category, locked, L.OPT_LOCKED_TT)
+    local trace = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_Trace",
+        "debug",
+        db,
+        Settings.VarType.Boolean,
+        L.OPT_TRACE,
+        ns.DEFAULTS.debug
+    )
+    Settings.CreateCheckbox(category, trace, L.OPT_TRACE_TT)
+
+    self:BuildDots(category, layout, db)
+    self:BuildTools(layout)
+
     Settings.RegisterAddOnCategory(category)
     ns.settingsCategory = category
+end
+
+local function Header(layout, text)
+    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(text))
+end
+
+local function Button(layout, label, buttonText, onClick, tooltip)
+    layout:AddInitializer(CreateSettingsButtonInitializer(label, buttonText, onClick, tooltip, true))
+end
+
+-- Acción que borra algo: antes, el diálogo de confirmación de Blizzard.
+local function Confirm(text, action)
+    if StaticPopup_ShowGenericConfirmation then
+        StaticPopup_ShowGenericConfirmation(text, action)
+    else
+        action()
+    end
+end
+
+-- /dotletal lista, añadir y quitar. Un menú no tiene caja de texto cómoda: para añadir se lanza el DoT una vez
+-- (a un muñeco, por ejemplo) y se pulsa «Añadir el último hechizo», con los segundos del deslizador.
+function module:BuildDots(category, layout, db)
+    Header(layout, L.OPT_SECTION_DOTS)
+    Button(layout, L.OPT_LIST, L.OPT_LIST_BUTTON, function()
+        SlashCmdList.DOTLETAL("lista")
+    end, L.OPT_LIST_TT)
+
+    local period = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_AddPeriod",
+        "addPeriod",
+        db,
+        Settings.VarType.Number,
+        L.OPT_ADD_PERIOD,
+        ns.DEFAULTS.addPeriod
+    )
+    local periodOptions = Settings.CreateSliderOptions(1, 5, 0.5)
+    periodOptions:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(value)
+        return ("%.1f s"):format(value)
+    end)
+    Settings.CreateSlider(category, period, periodOptions, L.OPT_ADD_PERIOD_TT)
+
+    Button(layout, L.OPT_ADD_LAST, L.OPT_ADD_BUTTON, function()
+        local name = ns.Dots.LastCast()
+        if not name then
+            ns:Print(L.OPT_ADD_NONE)
+            return
+        end
+        db.custom[name] = db.addPeriod
+        ns:ApplySettings()
+        ns:Print(L.ADDED:format(name, db.addPeriod))
+    end, L.OPT_ADD_LAST_TT)
+
+    -- Elegir uno lo quita; el desplegable vuelve a quedar vacío.
+    local remove = Settings.RegisterProxySetting(
+        category,
+        addonName .. "_Remove",
+        Settings.VarType.String,
+        L.OPT_REMOVE,
+        "",
+        function()
+            return ""
+        end,
+        function(name)
+            if type(name) == "string" and db.custom[name] then
+                db.custom[name] = nil
+                ns:ApplySettings()
+                ns:Print(L.REMOVED:format(name))
+            end
+        end
+    )
+    Settings.CreateDropdown(category, remove, function()
+        local container = Settings.CreateControlTextContainer()
+        container:Add("", L.OPT_REMOVE_NONE)
+        for _, dot in ipairs(ns.Dots.Custom(db.custom)) do
+            container:Add(dot.name, ("%s (%s s)"):format(dot.name, dot.period))
+        end
+        return container:GetData()
+    end, L.OPT_REMOVE_TT)
+end
+
+-- /dotletal debug y /dotletal reset confirmar.
+function module:BuildTools(layout)
+    Header(layout, L.OPT_SECTION_TOOLS)
+    Button(layout, L.OPT_DEBUG, L.OPT_DEBUG_BUTTON, function()
+        ns:PrintDiagnostics()
+    end, L.OPT_DEBUG_TT)
+    Button(layout, L.OPT_RESET, L.OPT_RESET_BUTTON, function()
+        Confirm(L.OPT_RESET_CONFIRM, function()
+            ns:ResetDB()
+            ns:ApplySettings()
+            ns:Print(L.RESET_DONE)
+        end)
+    end, L.OPT_RESET_TT)
 end
 
 -- Abrir el panel está restringido en combate (C_SettingsUtil.OpenSettingsPanel lleva HasRestrictions).
