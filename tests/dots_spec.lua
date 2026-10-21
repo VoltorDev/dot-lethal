@@ -284,6 +284,37 @@ describe("reglas de retail", function()
         assert.is_true(math.abs(dot.seconds - 16.2) < 1e-6)
     end)
 
+    it("pandemia: reaplicar no reinicia el reloj de los ticks; el último sale parcial", function()
+        local env, ns = bootRetail()
+        env:Cast(172) -- 1400 en 14 s, ticks de 200 cada 2 s
+        env:Advance(4.5) -- han caído 2; el siguiente toca a los 6 s
+        env:Cast(172) -- dura 14 + 4,2 = 18,2 s: acaba a los 22,7 s
+        -- Ticks a los 6, 8, ..., 22 s (9) y uno parcial de 0,7 / 2 al acabar.
+        assert.is_true(math.abs(remaining(env, ns) - 200 * 9.35) < 1e-6)
+        env:Advance(1.4) -- 5,9 s: el tick de los 6 s aún no ha caído
+        assert.is_true(math.abs(remaining(env, ns) - 200 * 9.35) < 1e-6)
+        env:Advance(0.2) -- 6,1 s: ya ha caído, cuando tocaba y no 2 s después de reaplicar
+        assert.is_true(math.abs(remaining(env, ns) - 200 * 8.35) < 1e-6)
+        env:Advance(16) -- 22,1 s: solo queda el parcial
+        assert.is_true(math.abs(remaining(env, ns) - 200 * 0.35) < 1e-6)
+        env:Advance(0.7) -- 22,8 s: terminado
+        assert.are.equal(0, remaining(env, ns))
+    end)
+
+    it("pandemia con más celeridad que al lanzar: el siguiente tick sigue en su hora", function()
+        local opts = { haste = 0 }
+        local env, ns = bootRetail(opts)
+        env:Cast(172)
+        env:Advance(4.5) -- siguiente tick a los 6 s
+        opts.haste = 100 -- ticks cada 1 s desde ahora
+        env:Cast(172)
+        local before = remaining(env, ns)
+        env:Advance(1.4) -- 5,9 s
+        assert.is_true(math.abs(remaining(env, ns) - before) < 1e-6)
+        env:Advance(0.2) -- 6,1 s
+        assert.is_true(remaining(env, ns) < before)
+    end)
+
     it("Agonía: «hasta» es con el escalón máximo; empieza en el 1", function()
         local env, ns = bootRetail()
         env:Cast(980)

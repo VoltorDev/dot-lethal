@@ -120,7 +120,8 @@ end
 -- siguiente y ticks ya caídos. Los ticks caen en start + k * interval; si la duración no es un
 -- múltiplo exacto, el último es parcial (como en retail con celeridad).
 function Dots.Remaining(entry, now)
-    local done = math.floor((now - entry.start) / entry.interval + 1e-6)
+    -- Al reaplicar con más celeridad que antes, el origen puede quedar en el futuro: aún no ha caído ninguno.
+    local done = math.max(0, math.floor((now - entry.start) / entry.interval + 1e-6))
     local full, partial = TickCount(entry)
     local last = partial > 0 and full + 1 or full
     if done >= last or now >= entry.start + entry.duration then
@@ -164,19 +165,29 @@ function Dots.NewEntry(def, description, now, haste, previous)
     end
     local level = 0
     local base = duration
+    local interval = def.period / (1 + (def.haste and haste or 0))
+    -- Origen de los ticks: caen en start + k * interval. Lanzado de cero, el primero llega un intervalo después.
+    local start = now
     if previous then
         local _, secs, _, done = Dots.Remaining(previous, now)
         if rules.pandemic and secs > 0 then
             duration = duration + math.min(secs, PANDEMIC * base)
+            -- Reaplicar no reinicia el reloj de los ticks: el siguiente cae cuando tocaba y solo cambia el final,
+            -- con un último tick parcial (dot_t::refresh de SimulationCraft). Con start = now, el addon restaba
+            -- cada tick hasta un intervalo tarde y la franja naranja se quedaba entera mientras la vida bajaba.
+            -- El origen pasa a ser el siguiente tick menos un intervalo, y la duración se cuenta desde ahí.
+            local nextTick = previous.start + (done + 1) * previous.interval
+            start = nextTick - interval
+            duration = duration + (now - start)
         end
         if def.ramp and secs > 0 then
             level = math.min(previous.level + done, def.ramp - 1)
         end
     end
     return {
-        start = now,
+        start = start,
         duration = duration,
-        interval = def.period / (1 + (def.haste and haste or 0)),
+        interval = interval,
         unit = TickUnit(def, total, base),
         weights = def.weights,
         ramp = def.ramp,
