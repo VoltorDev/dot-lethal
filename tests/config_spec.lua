@@ -21,7 +21,7 @@ describe("opciones en Settings", function()
         assert.are.equal(0, countKeys(registry.settings))
 
         env:Fire("ADDON_LOADED", env:AddonName(), false)
-        assert.are.equal(7, countKeys(registry.settings))
+        assert.are.equal(8, countKeys(registry.settings))
         assert.are.equal(1, #registry.addOnCategories)
         assert.are.equal(ns.settingsCategory, registry.addOnCategories[1])
         assert.are.equal(ns.L.ADDON_TITLE, ns.settingsCategory:GetName())
@@ -32,6 +32,7 @@ describe("opciones en Settings", function()
             Mode = { "mode", "string" },
             TargetFrame = { "targetFrame", "boolean" },
             Nameplate = { "nameplate", "boolean" },
+            Calibrate = { "calibrate", "boolean" },
         }
         for suffix, info in pairs(expected) do
             local setting = registry.settings[env:AddonName() .. "_" .. suffix]
@@ -57,8 +58,11 @@ describe("opciones en Settings", function()
             "Checkbox",
             "Checkbox",
             "Checkbox",
+            "Checkbox", -- calibrar con el medidor de daño
             "Header",
             "Button",
+            "Button", -- ver la calibración
+            "Button", -- borrar la calibración
             "Header",
             "Button",
             "Button",

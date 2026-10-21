@@ -16,10 +16,12 @@ ns.DEFAULTS = {
     targetFrame = true, -- marca en la barra de vida del marco de objetivo
     nameplate = true, -- marca en la placa del objetivo
     debug = false,
+    calibrate = true, -- Modules/Calibration.lua: ajustar el daño de cada DoT con el medidor de daño al salir de combate
     frame = { point = "CENTER", relativePoint = "CENTER", x = 0, y = -180 },
 }
 ns.CHAR_DEFAULTS = {
     schema = 1,
+    calibration = {}, -- [nombre del DoT] = { factor, ticks }: lo guarda Modules/Calibration.lua
 }
 
 -- MIGRATIONS[n] convierte la base de datos de cuenta del esquema n-1 al n; CHAR_MIGRATIONS hace lo

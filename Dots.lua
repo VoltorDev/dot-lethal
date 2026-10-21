@@ -98,6 +98,24 @@ function Dots.ParseDescription(text, mode, period)
     return nil
 end
 
+-- ¿Hay más de un número de daño antes de la duración? Un golpe directo ("inflige 200 y otros 1.800 durante
+-- 18 s") o el daño de los objetivos secundarios. El medidor de daño suma ese daño con el del DoT, así que esos
+-- hechizos no se calibran.
+function Dots.IsMixed(text, mode)
+    if mode == "tick" or type(text) ~= "string" then
+        return false
+    end
+    local count = 0
+    for _, n in ipairs(Numbers(text)) do
+        if n.time then
+            return count > 1
+        elseif not n.percent then
+            count = count + 1
+        end
+    end
+    return false
+end
+
 -- Peso del tick k (1, 2, ...) de una entrada.
 local function Weight(entry, k)
     if entry.weights then
@@ -184,15 +202,75 @@ function Dots.NewEntry(def, description, now, haste, previous)
             level = math.min(previous.level + done, def.ramp - 1)
         end
     end
-    return {
+    local factor = Dots.Factor(def.name)
+    local entry = {
         start = start,
         duration = duration,
         interval = interval,
-        unit = TickUnit(def, total, base),
+        unit = TickUnit(def, total, base) * factor,
         weights = def.weights,
         ramp = def.ramp,
         level = level,
+        -- Calibración (Modules/Calibration.lua): factor aplicado, daño total previsto con él y lo ya
+        -- apuntado en el combate, sin el factor y en ticks.
+        factor = factor,
+        calName = def.name,
+        calibrate = not Dots.IsMixed(description, def.mode),
+        credited = 0,
+        creditedTicks = 0,
     }
+    entry.total = Dots.Remaining(entry, now)
+    return entry
+end
+
+-- Calibración ----------------------------------------------------------------------------------------------
+-- Por hechizo (nombre localizado): { factor, ticks } que guarda Modules/Calibration.lua por personaje. El factor
+-- multiplica el daño de cada tick: recoge críticos, maestría y lo demás que la descripción no dice.
+local factors = {}
+
+function Dots.SetFactors(tbl)
+    factors = tbl or {}
+end
+
+function Dots.Factor(name)
+    local f = name and factors[name]
+    return (f and type(f.factor) == "number" and f.factor > 0) and f.factor or 1
+end
+
+-- Lo que el addon cree que han hecho sus DoTs en el combate en curso, por hechizo, sin factor: { [nombre] =
+-- { predicted, ticks, mixed } }. keys: objetivos distintos con DoTs; dirty: se perdió la pista de alguno.
+local ledger = { active = false, spells = {}, keys = {} }
+
+-- Ticks que tiene una entrada en total (el último parcial cuenta como uno).
+local function LastTick(entry)
+    local full, partial = TickCount(entry)
+    return partial > 0 and full + 1 or full
+end
+
+-- Apunta en el combate lo que una entrada ha hecho desde la última vez. Fuera de combate solo avanza la marca,
+-- para que lo hecho antes de entrar no cuente.
+local function Credit(entry, now, key)
+    if not entry.total then
+        return
+    end
+    local left, _, _, done = Dots.Remaining(entry, now)
+    -- Terminado, han caído todos, también el parcial del final (cae al acabar, antes de su intervalo entero).
+    done = left <= 0 and LastTick(entry) or math.min(done, LastTick(entry))
+    local raw = (entry.total - left) / entry.factor
+    local delta, ticks = raw - entry.credited, done - entry.creditedTicks
+    entry.credited, entry.creditedTicks = raw, done
+    if not ledger.active or delta <= 1e-9 then
+        return
+    end
+    local spell = ledger.spells[entry.calName or "?"]
+    if not spell then
+        spell = { predicted = 0, ticks = 0, mixed = false }
+        ledger.spells[entry.calName or "?"] = spell
+    end
+    spell.predicted = spell.predicted + delta
+    spell.ticks = spell.ticks + ticks
+    spell.mixed = spell.mixed or not entry.calibrate
+    ledger.keys[key or "?"] = true
 end
 
 -- Celeridad del jugador. En combate puede ser secreta: entonces se usa la última leída.
@@ -314,9 +392,29 @@ local function TargetKey()
     return guid
 end
 
-function Dots.OnTargetChanged()
+-- Con la identidad del PNJ secreta no se puede seguir al objetivo anterior: sus DoTs se olvidan. Si aún les quedaba
+-- daño, el combate deja de servir para calibrar (el medidor contará ticks que el addon ya no ve).
+function Dots.OnTargetChanged(now)
+    now = now or GetTime()
+    for _, entry in pairs(targets[CURRENT] or {}) do
+        Credit(entry, now, CURRENT)
+        if ledger.active and Dots.Remaining(entry, now) > 0 then
+            ledger.dirty = true
+        end
+    end
     targets[CURRENT] = nil
     currentKey = UnitExists("target") and TargetKey() or nil
+end
+
+-- El objetivo ha muerto: sus DoTs dejan de hacer daño ahora, no cuando el reloj del addon los daba por acabados.
+function Dots.TargetDied(now)
+    if currentKey and targets[currentKey] then
+        for _, entry in pairs(targets[currentKey]) do
+            Credit(entry, now, currentKey)
+        end
+        targets[currentKey] = nil
+    end
+    Dots.OnTargetChanged(now)
 end
 
 -- Devuelve true si el hechizo era un DoT y se ha apuntado.
@@ -347,6 +445,9 @@ function Dots.OnCast(spellID, now)
         return false
     end
     entry.name, entry.icon = name, C_Spell.GetSpellTexture(spellID)
+    if dots[name] then
+        Credit(dots[name], now, currentKey) -- lo que hizo la aplicación anterior hasta ahora
+    end
     targets[currentKey] = dots
     dots[name] = entry
     return true
@@ -362,6 +463,7 @@ function Dots.TargetState(now)
         return state
     end
     for name, entry in pairs(dots) do
+        Credit(entry, now, currentKey)
         local left, secs, dps = Dots.Remaining(entry, now)
         if left <= 0 then
             dots[name] = nil
@@ -384,6 +486,7 @@ end
 function Dots.Prune(now)
     for key, dots in pairs(targets) do
         for name, entry in pairs(dots) do
+            Credit(entry, now, key)
             if Dots.Remaining(entry, now) <= 0 then
                 dots[name] = nil
             end
@@ -395,6 +498,35 @@ function Dots.Prune(now)
 end
 
 function Dots.Clear()
+    if ledger.active and next(targets) ~= nil then
+        ledger.dirty = true
+    end
     wipe(targets)
     currentKey = nil
+end
+
+-- Combate: al entrar empieza la cuenta (lo hecho antes no cuenta); al salir se apunta lo que falte de cada DoT y se
+-- devuelve { spells, keys, dirty, duration } para compararlo con el medidor de daño.
+function Dots.CombatStart(now)
+    ledger.active = false
+    for key, dots in pairs(targets) do
+        for _, entry in pairs(dots) do
+            Credit(entry, now, key)
+        end
+    end
+    ledger = { active = true, started = now, spells = {}, keys = {}, dirty = false }
+end
+
+function Dots.CombatEnd(now)
+    if not ledger.active then
+        return nil
+    end
+    for key, dots in pairs(targets) do
+        for _, entry in pairs(dots) do
+            Credit(entry, now, key)
+        end
+    end
+    ledger.active = false
+    ledger.duration = now - ledger.started
+    return ledger
 end

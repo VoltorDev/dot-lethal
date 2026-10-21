@@ -8,7 +8,7 @@ end
 local L = ns.L
 
 L.LOADED = "cargado. Escribe /dotletal para ver las opciones."
-L.SLASH_HELP = "Comandos: /dotletal [config | mover | lista | traza | debug | reset]"
+L.SLASH_HELP = "Comandos: /dotletal [config | mover | lista | calibracion [borrar] | traza | debug | reset]"
 L.ERR_COMBAT = "No disponible en combate; inténtalo al salir de él."
 L.RESET_CONFIRM = "Escribe /dotletal reset confirmar para volver a los valores por defecto."
 L.RESET_DONE = "Opciones restauradas a los valores por defecto."
@@ -57,3 +57,18 @@ L.OPT_RESET = "Restablecer todas las opciones"
 L.OPT_RESET_BUTTON = "Restablecer"
 L.OPT_RESET_TT = "Vuelve a los valores por defecto todas las opciones."
 L.OPT_RESET_CONFIRM = "¿Restablecer todas las opciones de DoTLetal?"
+
+L.CALIBRATION_HEADER = "Calibración con el medidor de daño (daño real / estimado de cada DoT):"
+L.CALIBRATION_EMPTY =
+    "Aún sin calibrar: se aprende en combates contra un solo objetivo, con el medidor de daño activado."
+L.CALIBRATION_LINE = "%s x%.2f (%d ticks)"
+L.CALIBRATION_RESET = "Calibración borrada: los DoTs vuelven al daño de su descripción."
+L.OPT_CALIBRATE = "Calibrar con el medidor de daño"
+L.OPT_CALIBRATE_TT = "Tras cada combate contra un solo objetivo, compara el daño real de cada DoT (medidor de daño de "
+    .. "Blizzard) con el estimado y lo ajusta: recoge críticos, maestría y lo que la descripción no dice."
+L.OPT_CALIBRATION = "Calibración"
+L.OPT_CALIBRATION_BUTTON = "Ver"
+L.OPT_CALIBRATION_TT = "Enseña en el chat el factor aprendido para cada DoT."
+L.OPT_CALIBRATION_RESET = "Borrar la calibración"
+L.OPT_CALIBRATION_RESET_TT = "Olvida los factores aprendidos por este personaje."
+L.OPT_CALIBRATION_RESET_CONFIRM = "¿Borrar la calibración de DoTs de este personaje?"

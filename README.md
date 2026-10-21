@@ -32,6 +32,12 @@ objetivo también son secretas:
 4. En retail aplica tu celeridad a los DoTs que el juego marca así (los ticks van más rápido y hacen más daño
    en total) y la pandemia: reaplicar conserva hasta el 30 % de la duración. La Agonía sube de escalón en
    cada tick. En Forever, como en Vanilla, la celeridad no acelera los DoTs.
+5. **Se calibra con el daño real.** En combate no se puede leer el daño de tus DoTs: el registro de combate está
+   cerrado y el medidor de daño de Blizzard es secreto. Al salir de combate sí: DoTLetal compara el daño real de
+   cada DoT en el medidor con lo que había estimado y guarda un factor por hechizo y personaje, que aplica en los
+   combates siguientes. Así recoge críticos, maestría y lo demás que la descripción no dice. Solo aprende de
+   combates contra un único objetivo, con al menos 3 ticks del DoT, y no de los hechizos con golpe directo (el
+   medidor los suma). Necesita el medidor de daño activado en las opciones del juego.
 
 ## Uso
 
@@ -42,6 +48,7 @@ objetivo también son secretas:
   lo de los comandos: activar, escala, modo (Clásico con la lista o Compacto con solo los totales), marcar el
   marco de objetivo y la placa, bloquear el panel, traza, ver tus DoTs, diagnóstico y restablecer (con
   confirmación).
+- `/dotletal calibracion` enseña el factor aprendido de cada DoT; `/dotletal calibracion borrar` lo olvida.
 - `/dotletal traza` activa mensajes de depuración (por ejemplo, si no entiende la descripción de un DoT).
 - `/dotletal debug` saca el diagnóstico para informar de un problema.
 
@@ -58,10 +65,10 @@ el jugador puede aprender con un efecto de daño periódico sobre otro; quedan f
 - **Supone que el DoT va al objetivo actual.** Lanzado por mouseover o foco, se apunta mal.
 - **Al cambiar de objetivo puede olvidarlo.** Si el juego oculta la identidad del PNJ (GUID secreto),
   solo sigue al objetivo actual y borra sus DoTs al cambiar.
-- **Es una estimación.** Críticos, maestría y otros modificadores que la descripción no recoge, los efectos
-  de conjunto de equipo que cambian el ritmo y los DoTs que dependen de los puntos de combo (Destripar,
-  Ruptura) quedan fuera. La celeridad, si en
-  combate es secreta, se toma de la última lectura.
+- **Es una estimación.** Críticos, maestría y otros modificadores que la descripción no recoge entran con la
+  calibración, como media de los últimos combates: un combate con suerte o sin ella se sale de la media. Quedan
+  fuera los efectos de conjunto de equipo que cambian el ritmo y los DoTs que dependen de los puntos de combo
+  (Destripar, Ruptura). La celeridad, si en combate es secreta, se toma de la última lectura.
 - La placa se marca con las de Blizzard y con Plater; otras placas o marcos de unidad, no.
 
 ## Informar de un problema

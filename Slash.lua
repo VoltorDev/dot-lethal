@@ -24,6 +24,20 @@ function ns:PrintDiagnostics()
         print("  Restricciones activas: " .. (#active > 0 and table.concat(active, ", ") or "ninguna"))
     end
     print(("  InCombatLockdown=%s"):format(tostring(InCombatLockdown())))
+    local meter, reason = false, "sin C_DamageMeter"
+    if C_DamageMeter and C_DamageMeter.IsDamageMeterAvailable then
+        meter, reason = C_DamageMeter.IsDamageMeterAvailable()
+    end
+    print(
+        ("  Calibración=%s, medidor=%s %s"):format(
+            tostring(self.db.calibrate),
+            tostring(meter),
+            tostring(reason or "")
+        )
+    )
+    for _, line in ipairs(self.Calibration:Describe()) do
+        print("    " .. line)
+    end
     for _, warning in ipairs(client.GetWarnings()) do
         print("  AVISO: " .. warning)
     end
@@ -47,6 +61,17 @@ SlashCmdList.DOTLETAL = function(message)
         ns:Print(L.KNOWN_HEADER)
         for _, line in ipairs(ns.Dots.Known()) do
             print("  " .. line)
+        end
+    elseif command == "calibracion" or raw == "calibración" or command == "calibration" then
+        if argument == "borrar" or argument == "reset" then
+            ns.Calibration:Reset()
+            ns:Print(L.CALIBRATION_RESET)
+        else
+            local lines = ns.Calibration:Describe()
+            ns:Print(#lines > 0 and L.CALIBRATION_HEADER or L.CALIBRATION_EMPTY)
+            for _, line in ipairs(lines) do
+                print("  " .. line)
+            end
         end
     elseif command == "traza" or command == "trace" then
         ns.db.debug = not ns.db.debug

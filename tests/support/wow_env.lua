@@ -877,6 +877,40 @@ function M.new(opts)
         if opts.secretHaste then return Secret.wrap(h) end
         return h
     end
+    -- Medidor de daño (DamageMeterDocumentation.lua): opts.meter = { available, reason, duration, spells =
+    -- { { spellID, totalAmount }, ... } } describe la sesión Current del jugador; env:SetMeter(meter) la cambia.
+    -- Como el cliente: GetCombatSessionSourceFromType es SecretWhenInCombat (en combate devuelve una tabla que
+    -- canaccesstable rechaza) y no admite un GUID secreto. Sin opts.meter, el medidor no está disponible.
+    state.meter = opts.meter
+    state.meterCalls = 0
+    G.Enum.DamageMeterSessionType = { Overall = 0, Current = 1, Expired = 2 }
+    G.Enum.DamageMeterType = { DamageDone = 0, Dps = 1, HealingDone = 2, Hps = 3, Absorbs = 4, Interrupts = 5,
+        Dispels = 6, DamageTaken = 7, AvoidableDamageTaken = 8, Deaths = 9, EnemyDamageTaken = 10 }
+    local inaccessible = setmetatable({}, { __index = function() error("tabla secreta indexada", 2) end })
+    G.canaccesstable = function(tbl) return tbl ~= inaccessible end
+    G.C_DamageMeter = {
+        IsDamageMeterAvailable = function()
+            local m = state.meter
+            if not m or m.available == false then return false, (m and m.reason) or "disabled" end
+            return true, ""
+        end,
+        GetSessionDurationSeconds = function(sessionType)
+            assert(sessionType == G.Enum.DamageMeterSessionType.Current, "solo se simula la sesión Current")
+            return state.meter and state.meter.duration
+        end,
+        GetCombatSessionSourceFromType = function(sessionType, meterType, guid)
+            assert(sessionType == G.Enum.DamageMeterSessionType.Current, "solo se simula la sesión Current")
+            assert(meterType == G.Enum.DamageMeterType.DamageDone, "solo se simula DamageDone")
+            if Secret.is(guid) then error("GetCombatSessionSourceFromType: GUID secreto", 2) end
+            state.meterCalls = state.meterCalls + 1
+            if state.combat then return inaccessible end
+            local spells = {}
+            for _, s in ipairs(state.meter and state.meter.spells or {}) do
+                spells[#spells + 1] = { spellID = s[1], totalAmount = s[2], amountPerSecond = 0, overkillAmount = 0 }
+            end
+            return { combatSpells = spells, maxAmount = 0, totalAmount = 0 }
+        end,
+    }
     -- Curvas (CurveUtilDocumentation.lua): Step "promociona con coincidencia exacta"; Linear
     -- interpola. UnitHealthPercent(unit, usePredicted, curve) evalúa vida / máximo con la curva y
     -- devuelve el color, secreto si hay restricciones (SecretReturns).
@@ -1112,6 +1146,14 @@ function M.new(opts)
         state.dispatchingRestriction = true
         self:Fire("ADDON_RESTRICTION_STATE_CHANGED", kind, newState)
         state.dispatchingRestriction = false
+    end
+
+    function env:SetMeter(meter)
+        state.meter = meter
+    end
+
+    function env:MeterCalls()
+        return state.meterCalls
     end
 
     function env:SetCombat(inCombat)

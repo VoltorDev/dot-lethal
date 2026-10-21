@@ -33,3 +33,4 @@ Datos\Forever.lua
 Dots.lua
 Marker.lua
 Modules\Indicator.lua
+Modules\Calibration.lua

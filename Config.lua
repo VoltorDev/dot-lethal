@@ -106,6 +106,18 @@ function module:OnInitialize()
     )
     Settings.CreateCheckbox(category, trace, L.OPT_TRACE_TT)
 
+    local calibrate = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_Calibrate",
+        "calibrate",
+        db,
+        Settings.VarType.Boolean,
+        L.OPT_CALIBRATE,
+        ns.DEFAULTS.calibrate
+    )
+    calibrate:SetValueChangedCallback(OnSettingChanged)
+    Settings.CreateCheckbox(category, calibrate, L.OPT_CALIBRATE_TT)
+
     self:BuildDots(category, layout)
     self:BuildTools(layout)
 
@@ -136,6 +148,16 @@ function module:BuildDots(_, layout)
     Button(layout, L.OPT_LIST, L.OPT_LIST_BUTTON, function()
         SlashCmdList.DOTLETAL("lista")
     end, L.OPT_LIST_TT)
+    -- /dotletal calibracion y /dotletal calibracion borrar.
+    Button(layout, L.OPT_CALIBRATION, L.OPT_CALIBRATION_BUTTON, function()
+        SlashCmdList.DOTLETAL("calibracion")
+    end, L.OPT_CALIBRATION_TT)
+    Button(layout, L.OPT_CALIBRATION_RESET, L.OPT_RESET_BUTTON, function()
+        Confirm(L.OPT_CALIBRATION_RESET_CONFIRM, function()
+            ns.Calibration:Reset()
+            ns:Print(L.CALIBRATION_RESET)
+        end)
+    end, L.OPT_CALIBRATION_RESET_TT)
 end
 
 -- /dotletal debug y /dotletal reset confirmar.

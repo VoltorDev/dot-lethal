@@ -182,7 +182,7 @@ function module:Update()
     local db = ns.db
     local hasTarget = UnitExists("target")
     if hasTarget and UnitIsDeadOrGhost("target") then
-        Dots.OnTargetChanged() -- muerto: sus DoTs ya no cuentan
+        Dots.TargetDied(GetTime()) -- muerto: sus DoTs ya no cuentan ni hacen daño
         hasTarget = false
     end
     local state = Dots.TargetState(GetTime())
