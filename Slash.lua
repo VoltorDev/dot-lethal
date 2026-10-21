@@ -48,24 +48,6 @@ SlashCmdList.DOTLETAL = function(message)
         for _, line in ipairs(ns.Dots.Known()) do
             print("  " .. line)
         end
-    elseif raw == "añadir" or command == "anadir" or command == "add" then
-        local period, name = argument:match("^(%d+%.?%d*)%s+(.+)$")
-        period = tonumber(period)
-        if not period or period <= 0 then
-            ns:Print(L.ADD_USAGE)
-        else
-            ns.db.custom[name] = period
-            ns:ApplySettings()
-            ns:Print(L.ADDED:format(name, period))
-        end
-    elseif command == "quitar" or command == "remove" then
-        if ns.db.custom[argument] then
-            ns.db.custom[argument] = nil
-            ns:ApplySettings()
-            ns:Print(L.REMOVED:format(argument))
-        else
-            ns:Print(L.NOT_CUSTOM:format(argument))
-        end
     elseif command == "traza" or command == "trace" then
         ns.db.debug = not ns.db.debug
         ns:Print(ns.db.debug and L.TRACE_ON or L.TRACE_OFF)

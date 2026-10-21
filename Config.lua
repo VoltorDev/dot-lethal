@@ -106,7 +106,7 @@ function module:OnInitialize()
     )
     Settings.CreateCheckbox(category, trace, L.OPT_TRACE_TT)
 
-    self:BuildDots(category, layout, db)
+    self:BuildDots(category, layout)
     self:BuildTools(layout)
 
     Settings.RegisterAddOnCategory(category)
@@ -130,66 +130,12 @@ local function Confirm(text, action)
     end
 end
 
--- /dotletal lista, añadir y quitar. Un menú no tiene caja de texto cómoda: para añadir se lanza el DoT una vez
--- (a un muñeco, por ejemplo) y se pulsa «Añadir el último hechizo», con los segundos del deslizador.
-function module:BuildDots(category, layout, db)
+-- /dotletal lista. No hay que añadir nada: los DoTs del juego vienen en Datos/ y los talentos se detectan solos.
+function module:BuildDots(_, layout)
     Header(layout, L.OPT_SECTION_DOTS)
     Button(layout, L.OPT_LIST, L.OPT_LIST_BUTTON, function()
         SlashCmdList.DOTLETAL("lista")
     end, L.OPT_LIST_TT)
-
-    local period = Settings.RegisterAddOnSetting(
-        category,
-        addonName .. "_AddPeriod",
-        "addPeriod",
-        db,
-        Settings.VarType.Number,
-        L.OPT_ADD_PERIOD,
-        ns.DEFAULTS.addPeriod
-    )
-    local periodOptions = Settings.CreateSliderOptions(1, 5, 0.5)
-    periodOptions:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(value)
-        return ("%.1f s"):format(value)
-    end)
-    Settings.CreateSlider(category, period, periodOptions, L.OPT_ADD_PERIOD_TT)
-
-    Button(layout, L.OPT_ADD_LAST, L.OPT_ADD_BUTTON, function()
-        local name = ns.Dots.LastCast()
-        if not name then
-            ns:Print(L.OPT_ADD_NONE)
-            return
-        end
-        db.custom[name] = db.addPeriod
-        ns:ApplySettings()
-        ns:Print(L.ADDED:format(name, db.addPeriod))
-    end, L.OPT_ADD_LAST_TT)
-
-    -- Elegir uno lo quita; el desplegable vuelve a quedar vacío.
-    local remove = Settings.RegisterProxySetting(
-        category,
-        addonName .. "_Remove",
-        Settings.VarType.String,
-        L.OPT_REMOVE,
-        "",
-        function()
-            return ""
-        end,
-        function(name)
-            if type(name) == "string" and db.custom[name] then
-                db.custom[name] = nil
-                ns:ApplySettings()
-                ns:Print(L.REMOVED:format(name))
-            end
-        end
-    )
-    Settings.CreateDropdown(category, remove, function()
-        local container = Settings.CreateControlTextContainer()
-        container:Add("", L.OPT_REMOVE_NONE)
-        for _, dot in ipairs(ns.Dots.Custom(db.custom)) do
-            container:Add(dot.name, ("%s (%s s)"):format(dot.name, dot.period))
-        end
-        return container:GetData()
-    end, L.OPT_REMOVE_TT)
 end
 
 -- /dotletal debug y /dotletal reset confirmar.

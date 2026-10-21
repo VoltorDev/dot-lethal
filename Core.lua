@@ -17,8 +17,6 @@ ns.DEFAULTS = {
     nameplate = true, -- marca en la placa del objetivo
     debug = false,
     frame = { point = "CENTER", relativePoint = "CENTER", x = 0, y = -180 },
-    custom = {}, -- DoTs añadidos a mano: nombre del hechizo -> segundos entre ticks
-    addPeriod = 2, -- menú de opciones: segundos entre ticks del DoT que se añade con «Añadir el último hechizo»
 }
 ns.CHAR_DEFAULTS = {
     schema = 1,

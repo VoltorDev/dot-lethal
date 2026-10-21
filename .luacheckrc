@@ -4,6 +4,8 @@
 std = "lua51"
 max_line_length = 120
 exclude_files = { "Libs/", ".release/", "tools/", ".luacheckrc" }
+-- Datos/ lo genera tools/generar_datos.py: líneas largas, una por hechizo.
+files["Datos/"] = { max_line_length = false }
 
 ignore = {
     "212/self", -- self sin usar en métodos
@@ -26,6 +28,7 @@ read_globals = {
     "C_CurveUtil",
     "C_NamePlate",
     "C_Spell",
+    "C_SpellBook",
     "CreateSettingsButtonInitializer",
     "CreateSettingsListSectionHeaderInitializer",
     "StaticPopup_ShowGenericConfirmation",

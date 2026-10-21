@@ -237,26 +237,14 @@ describe("seguimiento por objetivo", function()
         env:SetTarget({ exists = true }, "Creature-0-1-1-1-1-A", true)
         assert.are.equal(0, remaining(env, ns))
     end)
-
-    it("los DoTs añadidos a mano por nombre también se siguen", function()
-        local spells = { [9999] = { "Mi DoT", "Inflige 300 p. de daño durante 12 s." } }
-        local env, ns = boot({ spells = spells })
-        env:Cast(9999)
-        assert.are.equal(0, remaining(env, ns))
-        env:RunSlash("/dotletal añadir 3 Mi DoT")
-        env:Cast(9999)
-        assert.are.equal(300, remaining(env, ns))
-        env:Advance(12)
-        assert.are.equal(0, remaining(env, ns))
-    end)
 end)
 
 describe("reglas de retail", function()
-    it("usa el catálogo de retail con los nombres del cliente en español", function()
-        local _, ns = bootRetail()
+    it("la lista solo enseña los DoTs que tiene el personaje, con los nombres del cliente", function()
+        local _, ns = bootRetail({ known = { [172] = true } })
         local known = table.concat(ns.Dots.Known(), "\n")
-        assert.is_truthy(known:find("Agonía (2s)", 1, true))
         assert.is_truthy(known:find("Corrupción (2s)", 1, true))
+        assert.is_nil(known:find("Agonía", 1, true))
     end)
 
     it("la celeridad acelera los ticks y suma daño", function()
@@ -315,5 +303,69 @@ describe("reglas de retail", function()
         env:Cast(980)
         local refreshed = ns.Dots.TargetState(env.GetTime()).list[1].dps
         assert.is_true(math.abs(refreshed - later) < 1e-6)
+    end)
+end)
+
+-- Datos de todos los DoTs del juego (Datos/*.lua, generados de las tablas del cliente) y talentos detectados.
+describe("datos del juego y talentos detectados", function()
+    it("un DoT que no estaba en ninguna lista (Toque vampírico) se sigue sin añadir nada", function()
+        local spells = {
+            [34914] = {
+                "Toque vampírico",
+                "Un toque de la oscuridad que inflige 900 p. de daño de las Sombras durante 21 s.",
+            },
+        }
+        local env, ns = bootRetail({ spells = spells })
+        env:Cast(34914)
+        local dot = ns.Dots.TargetState(env.GetTime()).list[1]
+        assert.are.equal(900, dot.damage)
+        assert.is_true(math.abs(dot.dps - 900 / 21) < 1e-6) -- periodo 3 s de las tablas
+    end)
+
+    it("otro ID con el mismo nombre (Fuego lunar lanzado y su DoT) se reconoce por el nombre", function()
+        local text = "Un rápido haz de luz lunar quema al objetivo y le inflige 200 p. de daño Arcano más "
+            .. "1.800 p. de daño Arcano adicional durante 18 s"
+        local spells = { [999001] = { "Fuego lunar", text }, [164812] = { "Fuego lunar", text } }
+        local env, ns = bootRetail({ spells = spells })
+        env:Cast(999001)
+        assert.are.equal(1800, remaining(env, ns))
+    end)
+
+    it("un talento de ritmo que tienes (Creeping Death, -10 %) acelera los ticks de Corrupción", function()
+        local env, ns = bootRetail({ known = { [264000] = true } })
+        assert.is_true(math.abs(ns.Dots.Definition(172).period - 1.8) < 1e-6)
+        env:Cast(172)
+        local dot = ns.Dots.TargetState(env.GetTime()).list[1]
+        -- Mismos ticks en la duración de la descripción: mismo total, en menos tiempo por tick.
+        assert.is_true(math.abs(dot.dps - (1400 / (14 / 1.8)) / 1.8) < 1e-6)
+    end)
+
+    it("al cambiar los talentos se recalcula el ritmo", function()
+        local opts = { known = {} }
+        local env, ns = bootRetail(opts)
+        assert.are.equal(2, ns.Dots.Definition(172).period)
+        opts.known[264000] = true
+        env:Fire("TRAIT_CONFIG_UPDATED", 1)
+        assert.is_true(math.abs(ns.Dots.Definition(172).period - 1.8) < 1e-6)
+    end)
+
+    it("un talento de otra familia de clase no cambia nada", function()
+        local spells = { [589] = { "Palabra de las Sombras: dolor", "Inflige 900 p. de daño durante 16 s." } }
+        local _, ns = bootRetail({ known = { [264000] = true }, spells = spells })
+        assert.are.equal(2, ns.Dots.Definition(589).period) -- Palabra de las Sombras: dolor (sacerdote)
+    end)
+
+    it("en Forever la celeridad no acelera los DoTs (las tablas no los marcan)", function()
+        local env, ns = boot({ haste = 25 })
+        env:Cast(172)
+        assert.are.equal(822, remaining(env, ns))
+        assert.is_false(ns.Dots.Definition(172).haste)
+    end)
+
+    it("los casos especiales se aplican por nombre a todos los rangos", function()
+        local _, ns = bootRetail()
+        assert.are.equal(8, ns.Dots.Definition(980).ramp)
+        local _, forever = boot({ spells = { [980] = SPELLS[980], [1014] = { "Curse of Agony", SPELLS[980][2] } } })
+        assert.is_not_nil(forever.Dots.Definition(1014).weights)
     end)
 end)

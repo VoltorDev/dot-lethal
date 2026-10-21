@@ -92,6 +92,11 @@ function module:OnEnable()
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
     frame:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
+    -- Talentos, especialización o hechizos nuevos: los DoTs y su ritmo de ticks se recalculan solos.
+    frame:RegisterEvent("SPELLS_CHANGED")
+    frame:RegisterEvent("PLAYER_TALENT_UPDATE")
+    frame:RegisterEvent("TRAIT_CONFIG_UPDATED")
+    frame:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
     frame:SetScript("OnEvent", function(_, event, ...)
         module:OnEvent(event, ...)
     end)
@@ -101,7 +106,7 @@ function module:OnEnable()
     self.panelMarker = Marker.New(health, 14)
     self.hostMarkers = {} -- barra anfitriona -> Marker (las placas se reciclan: una por barra)
     self:MarkerFor(TargetFrameBar()) -- fuera de combate: el marco de objetivo es de Blizzard
-    Dots.Rebuild(ns.db.custom)
+    Dots.Rebuild()
     Dots.OnTargetChanged()
     self:ApplySettings()
 end
@@ -117,6 +122,13 @@ function module:OnEvent(event, ...)
         Dots.Prune(GetTime())
     elseif event == "PLAYER_ENTERING_WORLD" then
         Dots.Clear()
+    elseif
+        event == "SPELLS_CHANGED"
+        or event == "PLAYER_TALENT_UPDATE"
+        or event == "TRAIT_CONFIG_UPDATED"
+        or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED"
+    then
+        Dots.Rebuild()
     end
     self:Update()
 end
@@ -248,6 +260,6 @@ function module:ApplySettings()
     self.frame:SetPoint(position.point, UIParent, position.relativePoint, position.x, position.y)
     self.frame:SetScale(db.scale)
     self.frame:EnableMouse(not db.locked)
-    Dots.Rebuild(db.custom)
+    Dots.Rebuild()
     self:Update()
 end

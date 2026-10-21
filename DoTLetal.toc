@@ -28,6 +28,8 @@ Secrets.lua
 Core.lua
 Config.lua
 Slash.lua
+Datos\Retail.lua
+Datos\Forever.lua
 Dots.lua
 Marker.lua
 Modules\Indicator.lua

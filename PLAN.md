@@ -18,7 +18,8 @@ propios, cuánto le queda a cada uno, qué parte de su vida se llevarán, y una 
 | Daño por segundo total y por DoT; segundos restantes por DoT | Sí | Tests del panel |
 | Pérdida en naranja sobre la barra del marco de objetivo, de la placa (Blizzard o Plater) y del panel | Sí | Mock: la vida nunca se compara en Lua y la barra se ancla al relleno. **Sin ver en el cliente** |
 | Calavera: por curva si la vida máxima es legible; por barra compuerta si es secreta | Sí | Mock de los dos caminos. **Sin ver en el cliente** |
-| Menú de opciones con todo lo de `/dotletal` (21-10-2026); añadir un DoT = el último hechizo lanzado | Sí | 4 tests nuevos (128 en total). **Sin ver en el cliente** |
+| Menú de opciones con todo lo de `/dotletal` (21-10-2026) | Sí | Tests del menú. **Sin ver en el cliente** |
+| Todos los DoTs del juego y talentos de ritmo detectados solos (21-10-2026, pedido de Nico: «el jugador no debería añadir nada»). `tools/generar_datos.py` con las DB2 de wago.tools: 116 DoTs en retail (12.1.5.70448) y 231 en Forever (1.60.1.70245); 35 talentos de ritmo en retail (operación 19, comprobada con Creeping Death, Rapid Contagion y Sataiel's Volition). Se quitó el añadido manual | Sí | `tests/probar_generador.py` con tablas inventadas; 133 tests del addon con los datos reales (Toque vampírico sin catálogo, Fuego lunar por nombre, Creeping Death, cambio de talentos, Forever sin celeridad). **Sin probar en el cliente** que `C_SpellBook.IsSpellKnown` ve los talentos pasivos |
 
 ## Pendiente
 
@@ -26,8 +27,8 @@ propios, cuánto le queda a cada uno, qué parte de su vida se llevarán, y una 
    bien», sin datos concretos; Claude no pudo verlo (sin acceso a `wow.exe` por control remoto). Falta
    confirmar cada punto:
    - Reiniciar el cliente la primera vez, ya que el addon es nuevo.
-   - `/dotletal lista`: que salgan Agonía, Corrupción, Aflicción inestable… Si falta alguno, su spellID
-     no es el bueno; añadirlo con `/dotletal añadir`.
+   - `/dotletal lista`: que salgan Agonía, Corrupción, Aflicción inestable… con el periodo que toca. Con
+     Creeping Death, 1,8 s en vez de 2: si sale 2, `C_SpellBook.IsSpellKnown` no ve los talentos pasivos.
    - `/dotletal traza` y lanzar cada DoT a un muñeco: si no reconoce la descripción, la traza la
      enseña. Comparar el daño por segundo del panel con el que da Details en el muñeco.
    - Ver la franja naranja al final de la vida en el marco de objetivo y en la placa de Plater. Es el

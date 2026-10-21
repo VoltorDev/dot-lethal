@@ -863,6 +863,9 @@ function M.new(opts)
     G.UnitIsDeadOrGhost = function(unit)
         return unit == "target" and state.target.dead == true
     end
+    -- Hechizos y talentos que tiene el jugador: opts.known = { [spellID] = true }.
+    state.known = opts.known or {}
+    G.C_SpellBook = { IsSpellKnown = function(id) return state.known[id] == true end }
     G.C_Spell = {
         GetSpellName = function(id) local s = state.spells[id]; return s and s[1] end,
         GetSpellDescription = function(id) local s = state.spells[id]; return s and s[2] end,

@@ -21,7 +21,7 @@ describe("opciones en Settings", function()
         assert.are.equal(0, countKeys(registry.settings))
 
         env:Fire("ADDON_LOADED", env:AddonName(), false)
-        assert.are.equal(9, countKeys(registry.settings)) -- 8 guardados y «quitar un DoT»
+        assert.are.equal(7, countKeys(registry.settings))
         assert.are.equal(1, #registry.addOnCategories)
         assert.are.equal(ns.settingsCategory, registry.addOnCategories[1])
         assert.are.equal(ns.L.ADDON_TITLE, ns.settingsCategory:GetName())
@@ -59,9 +59,6 @@ describe("opciones en Settings", function()
             "Checkbox",
             "Header",
             "Button",
-            "Slider",
-            "Button",
-            "Dropdown",
             "Header",
             "Button",
             "Button",
@@ -116,9 +113,7 @@ describe("opciones en Settings", function()
     end)
 end)
 
--- Lo que antes solo se hacía con /dotletal: bloquear, traza, lista, añadir, quitar, diagnóstico y restablecer.
-local SPELLS = { [9999] = { "Mi DoT", "Inflige 300 p. de daño durante 12 s." } }
-
+-- Lo que antes solo se hacía con /dotletal: bloquear, traza, lista, diagnóstico y restablecer.
 local function settingOf(env, suffix)
     return env:SettingsRegistry().settings[env:AddonName() .. "_" .. suffix]
 end
@@ -132,15 +127,6 @@ local function buttonOf(env, label)
     error("no hay botón " .. tostring(label))
 end
 
-local function controlOf(env, suffix)
-    local wanted = settingOf(env, suffix)
-    for _, c in ipairs(env:SettingsRegistry().controls) do
-        if c.setting == wanted then
-            return c
-        end
-    end
-end
-
 describe("opciones: lo que hacía /dotletal", function()
     it("bloquear el panel y la traza se guardan como con /dotletal mover y /dotletal traza", function()
         local env = WowEnv.boot(TOC)
@@ -149,26 +135,6 @@ describe("opciones: lo que hacía /dotletal", function()
         assert.is_true(env.DoTLetalFrame:IsShown()) -- desbloqueado: datos de muestra para colocarlo
         settingOf(env, "Trace"):SetValue(true)
         assert.is_true(env.DoTLetalDB.debug)
-    end)
-
-    it("añadir el último hechizo lanzado con los segundos del deslizador, y quitarlo", function()
-        local env, ns = WowEnv.boot(TOC, { spells = SPELLS, target = { exists = true, attackable = true } })
-        buttonOf(env, ns.L.OPT_ADD_LAST).click()
-        assert.is_nil(next(env.DoTLetalDB.custom)) -- aún no ha lanzado nada
-        env:Cast(9999)
-        settingOf(env, "AddPeriod"):SetValue(3)
-        buttonOf(env, ns.L.OPT_ADD_LAST).click()
-        assert.are.equal(3, env.DoTLetalDB.custom["Mi DoT"])
-        env:Cast(9999)
-        assert.are.equal(300, ns.Dots.TargetState(env.GetTime()).damage) -- ya lo sigue
-        local values = {}
-        for _, option in ipairs(controlOf(env, "Remove").options()) do
-            values[#values + 1] = option.value
-        end
-        assert.are.same({ "", "Mi DoT" }, values)
-        settingOf(env, "Remove"):SetValue("Mi DoT")
-        assert.is_nil(env.DoTLetalDB.custom["Mi DoT"])
-        assert.are.equal("", settingOf(env, "Remove"):GetValue())
     end)
 
     it("ver la lista y el diagnóstico escriben en el chat", function()
@@ -180,12 +146,12 @@ describe("opciones: lo que hacía /dotletal", function()
         assert.is_truthy(env:Printed():find(ns.L.DEBUG_HEADER, 1, true))
     end)
 
-    it("restablecer pide confirmación y borra también los DoTs añadidos", function()
+    it("restablecer pide confirmación y vuelve a los valores por defecto", function()
         local env, ns = WowEnv.boot(TOC)
-        env.DoTLetalDB.custom["Mi DoT"] = 3
+        env.DoTLetalDB.scale = 1.7
         buttonOf(env, ns.L.OPT_RESET).click()
-        assert.are.equal(3, env.DoTLetalDB.custom["Mi DoT"])
+        assert.are.equal(1.7, env.DoTLetalDB.scale)
         env:SettingsRegistry().confirm.accept()
-        assert.is_nil(env.DoTLetalDB.custom["Mi DoT"])
+        assert.are.equal(ns.DEFAULTS.scale, env.DoTLetalDB.scale)
     end)
 end)

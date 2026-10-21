@@ -11,70 +11,31 @@ local _, ns = ...
 local Dots = {}
 ns.Dots = Dots
 
--- Catálogos: spellID que se lanza -> segundos entre ticks sin celeridad y reparto del daño.
--- El nombre se saca del cliente, así vale para todos los rangos, talentos que cambian el ID y
--- cualquier idioma. mode "tick": la descripción da el daño de cada tick.
+-- Datos de todos los DoTs que puede tener un jugador: Datos/Retail.lua y Datos/Forever.lua, generados por
+-- tools/generar_datos.py con las tablas del cliente (wago.tools). Por hechizo: periodo de tick, si la celeridad
+-- lo acelera, y familia y máscara de clase, con las que se ven los talentos que cambian el ritmo (ritmos). El
+-- daño y la duración salen de la descripción del hechizo, que ya trae los talentos y el poder con hechizos.
+-- Encima, lo que las tablas no dicen, aplicado por nombre (vale para todos los rangos):
 --   weights: pesos fijos por tick (Maldición de agonía de Classic: los últimos pesan más).
---   ramp:    el daño sube un escalón por tick hasta `ramp` (Agonía de retail); reaplicarla
---            conserva el escalón.
--- Retail: ID que el jugador aprende (SkillLineAbility y TraitDefinition) y periodos de su aura de
--- daño periódico (SpellEffect.EffectAuraPeriod), de las tablas del juego en wago.tools, y textos en
--- español de Wowhead, consultados el 20-10-2026 (12.1.5). Forever: ID de Classic, de memoria
--- (INFERENCIA). /dotletal lista enseña cuáles existen en el cliente y /dotletal añadir completa
--- los que falten.
+--   ramp:    el daño sube un escalón por tick hasta `ramp` (Agonía de retail); reaplicarla conserva el escalón.
+--   mode "tick": la descripción da el daño de cada tick (Succionar vida de Classic).
+--   mode "max":  el daño es el mayor número antes de la duración (Putrefacción de alma: objetivo principal).
 local AGONY_CLASSIC = { 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 1.5, 1.5, 1.5, 1.5 }
--- stylua: ignore start
-Dots.CATALOGS = {
-    Forever = {
-        [172]   = { period = 3 },                           -- Corrupción
-        [980]   = { period = 2, weights = AGONY_CLASSIC },  -- Maldición de agonía
-        [348]   = { period = 3 },                           -- Inmolar
-        [18265] = { period = 3, mode = "tick" },            -- Succionar vida
-        [589]   = { period = 3 },                           -- Palabra de las Sombras: dolor
-        [2944]  = { period = 3 },                           -- Peste devoradora
-        [8921]  = { period = 3 },                           -- Fuego lunar
-        [5570]  = { period = 2 },                           -- Enjambre de insectos
-        [1822]  = { period = 3 },                           -- Arañazo
-        [1978]  = { period = 3 },                           -- Picadura de serpiente
-        [8050]  = { period = 3 },                           -- Choque de llamas
-        [772]   = { period = 3 },                           -- Desgarrar
-        [703]   = { period = 3 },                           -- Garrote
-        [11366] = { period = 3 },                           -- Piroexplosión
-    },
-    Retail = {
-        [980]     = { period = 2, ramp = 8 },          -- Agonía ("hasta": con el escalón máximo, x8)
-        [172]     = { period = 2 },                    -- Corrupción
-        [1259790] = { period = 2 },                    -- Aflicción inestable
-        [63106]   = { period = 3 },                    -- Succionar vida
-        [445468]  = { period = 2 },                    -- Marchitar (Hellcaller)
-        [386997]  = { period = 2, mode = "max" },      -- Putrefacción de alma (objetivo principal)
-        [118297]  = { period = 3 },                    -- Inmolar
-        [589]     = { period = 2 },                    -- Palabra de las Sombras: dolor
-        [34914]   = { period = 3 },                    -- Toque vampírico
-        [335467]  = { period = 2 },                    -- Palabra de las Sombras: locura
-        [8921]    = { period = 2 },                    -- Fuego lunar
-        [93402]   = { period = 2 },                    -- Fuego solar
-        [202347]  = { period = 2 },                    -- Centella estelar
-        [1822]    = { period = 3 },                    -- Arañazo (periodo de memoria)
-        [106830]  = { period = 3 },                    -- Vapulear (felino)
-        [470411]  = { period = 2 },                    -- Choque de llamas
-        [703]     = { period = 2 },                    -- Garrote
-        [772]     = { period = 3 },                    -- Desgarrar
-        [271788]  = { period = 3 },                    -- Picadura de serpiente
-    },
+Dots.SPECIALS = {
+    Forever = { [980] = { weights = AGONY_CLASSIC }, [18265] = { mode = "tick" } },
+    Retail = { [980] = { ramp = 8 }, [386997] = { mode = "max" } },
 }
--- stylua: ignore end
 
--- Reglas del cliente. Retail: la celeridad acelera los ticks (y suma daño) y reaplicar conserva
--- hasta un 30 % de la duración (pandemia). Forever, contenido Vanilla: ni lo uno ni lo otro
--- (INFERENCIA: comprobar en el cliente si la celeridad acelera los DoTs).
-local rules = { haste = false, pandemic = false, catalog = Dots.CATALOGS.Forever }
+-- Reglas del cliente. Retail: reaplicar conserva hasta un 30 % de la duración (pandemia). La celeridad acelera
+-- los ticks de los DoTs que el juego marca así (en retail, todos; en Forever, ninguno).
+local rules = { pandemic = false, data = { dots = {}, ritmos = {} }, specials = {} }
 local PANDEMIC = 0.3
 
 function Dots.Configure(isRetail)
-    rules.haste = isRetail
     rules.pandemic = isRetail
-    rules.catalog = isRetail and Dots.CATALOGS.Retail or Dots.CATALOGS.Forever
+    local key = isRetail and "Retail" or "Forever"
+    rules.data = (ns.DATOS and ns.DATOS[key]) or { dots = {}, ritmos = {} }
+    rules.specials = Dots.SPECIALS[key] or {}
 end
 
 -- Números de una descripción y si van seguidos de una unidad de tiempo. "1,234" (inglés) y
@@ -177,6 +138,11 @@ end
 -- Daño de un tick con peso 1: el total de la descripción repartido entre sus ticks sin celeridad.
 -- Con rampa, la descripción da el máximo ("hasta"): todos los ticks en el escalón más alto.
 local function TickUnit(def, total, duration)
+    if not def.ramp and not def.weights then
+        -- Ticks iguales: el total entre los ticks exactos, con el último parcial si la duración no es un
+        -- múltiplo del periodo (un talento de ritmo deja 14 s / 1,8 s = 7,78 ticks).
+        return total / math.max(duration / def.period, 1)
+    end
     local ticks = math.max(1, math.floor(duration / def.period + 0.5))
     if def.ramp then
         return total / (ticks * def.ramp)
@@ -210,7 +176,7 @@ function Dots.NewEntry(def, description, now, haste, previous)
     return {
         start = now,
         duration = duration,
-        interval = def.period / (1 + (haste or 0)),
+        interval = def.period / (1 + (def.haste and haste or 0)),
         unit = TickUnit(def, total, base),
         weights = def.weights,
         ramp = def.ramp,
@@ -222,9 +188,6 @@ end
 local lastHaste = 0
 
 function Dots.Haste()
-    if not rules.haste then
-        return 0
-    end
     local percent = UnitSpellHaste("player")
     if percent ~= nil and not issecretvalue(percent) then
         lastHaste = percent / 100
@@ -235,42 +198,101 @@ end
 -- Estado: DoTs por objetivo. La clave es el GUID cuando se puede leer; si la identidad del PNJ es
 -- secreta (no se puede usar de clave), solo se sigue el objetivo actual y se olvida al cambiarlo.
 local CURRENT = "current"
-local byName = {} -- nombre localizado -> definición
+local byID = {} -- spellID que se lanza -> definición
+local byName = {} -- nombre localizado -> definición (otros rangos y variantes con otro ID)
 local targets = {} -- clave -> { [nombre] = entrada }
 local currentKey
 
-function Dots.Rebuild(custom)
-    wipe(byName)
-    for spellID, def in pairs(rules.catalog) do
-        local name = C_Spell.GetSpellName(spellID)
-        if name then
-            byName[name] = def
+-- ¿Tiene el jugador ese hechizo o talento? C_SpellBook.IsSpellKnown (el IsPlayerSpell de siempre es ahora un
+-- alias suyo, Deprecated_SpellBook.lua:11-14). INFERENCIA: comprobar en el cliente que ve los talentos pasivos.
+local function Known(spellID)
+    return C_SpellBook ~= nil and C_SpellBook.IsSpellKnown ~= nil and C_SpellBook.IsSpellKnown(spellID) == true
+end
+Dots.IsKnown = Known
+
+-- ¿Comparten algún bit dos máscaras de 32 bits (pueden venir negativas)? Sin la librería bit, que el Lua de
+-- los tests no tiene.
+local function Common(a, b)
+    a, b = (a or 0) % 4294967296, (b or 0) % 4294967296
+    while a > 0 and b > 0 do
+        if a % 2 == 1 and b % 2 == 1 then
+            return true
+        end
+        a, b = math.floor(a / 2), math.floor(b / 2)
+    end
+    return false
+end
+
+local function Overlap(m1, m2)
+    for i = 1, 4 do
+        if Common(m1[i], m2[i]) then
+            return true
         end
     end
-    for name, period in pairs(custom or {}) do
-        byName[name] = { period = period }
+    return false
+end
+
+-- Rehace las definiciones con los talentos actuales: periodo base por los talentos de ritmo que tenga el
+-- jugador (misma familia de clase y máscara que se cruza), y lo especial por nombre.
+function Dots.Rebuild()
+    wipe(byID)
+    wipe(byName)
+    local talents = {}
+    for _, r in ipairs(rules.data.ritmos or {}) do
+        if Known(r.talento) then
+            talents[#talents + 1] = r
+        end
+    end
+    local specialByName = {}
+    for spellID, special in pairs(rules.specials) do
+        local name = C_Spell.GetSpellName(spellID)
+        if name then
+            specialByName[name] = special
+        end
+    end
+    for spellID, d in pairs(rules.data.dots or {}) do
+        local name = C_Spell.GetSpellName(spellID)
+        if name then
+            local def = {
+                spellID = spellID,
+                name = name,
+                aura = d.aura,
+                base = d.periodo,
+                period = d.periodo,
+                haste = d.prisa == true,
+            }
+            for _, r in ipairs(talents) do
+                if r.familia == d.familia and Overlap(r.mascara, d.mascara) then
+                    def.period = def.period * (1 + r.pct / 100)
+                end
+            end
+            for key, value in pairs(specialByName[name] or {}) do
+                def[key] = value
+            end
+            byID[spellID] = def
+            if not byName[name] or (Known(spellID) and not Known(byName[name].spellID)) then
+                byName[name] = def
+            end
+        end
     end
 end
 
--- DoTs añadidos a mano (db.custom), por orden: { { name, period } }.
-function Dots.Custom(custom)
-    local list = {}
-    for name, period in pairs(custom or {}) do
-        list[#list + 1] = { name = name, period = period }
-    end
-    table.sort(list, function(a, b)
-        return a.name < b.name
-    end)
-    return list
-end
-
+-- DoTs que tiene el personaje, por nombre y con su periodo actual: { "Corrupción (2s)", ... }.
 function Dots.Known()
-    local list = {}
-    for name, def in pairs(byName) do
-        list[#list + 1] = ("%s (%ss)"):format(name, def.period)
+    local list, seen = {}, {}
+    for spellID, def in pairs(byID) do
+        if not seen[def.name] and Known(spellID) then
+            seen[def.name] = true
+            list[#list + 1] = ("%s (%ss)"):format(def.name, math.floor(def.period * 100 + 0.5) / 100)
+        end
     end
     table.sort(list)
     return list
+end
+
+-- Definición de un DoT por su ID (o por su nombre), o nil.
+function Dots.Definition(spellID)
+    return byID[spellID] or byName[C_Spell.GetSpellName(spellID) or ""]
 end
 
 local function TargetKey()
@@ -286,36 +308,29 @@ function Dots.OnTargetChanged()
     currentKey = UnitExists("target") and TargetKey() or nil
 end
 
--- Nombre del último hechizo que lanzó el jugador, sea o no un DoT: el menú de opciones lo ofrece para
--- añadirlo a la lista sin escribirlo.
-local lastCast
-
-function Dots.LastCast()
-    return lastCast
-end
-
 -- Devuelve true si el hechizo era un DoT y se ha apuntado.
 function Dots.OnCast(spellID, now)
-    if issecretvalue(spellID) then
-        return false
-    end
-    lastCast = C_Spell.GetSpellName(spellID) or lastCast
-    if not UnitExists("target") or UnitIsDeadOrGhost("target") then
+    if issecretvalue(spellID) or not UnitExists("target") or UnitIsDeadOrGhost("target") then
         return false
     end
     local attackable = UnitCanAttack("player", "target")
     if not issecretvalue(attackable) and not attackable then
         return false
     end
-    local name = C_Spell.GetSpellName(spellID)
-    local def = name and byName[name]
+    local def = Dots.Definition(spellID)
     if not def then
         return false
     end
+    local name = C_Spell.GetSpellName(spellID) or def.name
     currentKey = currentKey or TargetKey()
     local dots = targets[currentKey] or {}
+    -- La descripción del hechizo lanzado; si no la entiende, la del aura que pone (Fuego lunar -> su DoT).
     local description = C_Spell.GetSpellDescription(spellID)
     local entry = Dots.NewEntry(def, description, now, Dots.Haste(), dots[name])
+    if not entry and def.aura and def.aura ~= spellID then
+        description = C_Spell.GetSpellDescription(def.aura)
+        entry = Dots.NewEntry(def, description, now, Dots.Haste(), dots[name])
+    end
     if not entry then
         ns.Debug("descripción no reconocida:", name, description)
         return false
