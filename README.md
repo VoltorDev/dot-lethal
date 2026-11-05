@@ -7,6 +7,20 @@ Addon para World of Warcraft **retail** (Midnight, 12.1) y **Forever**. Mientras
 - Pone una **calavera** a la izquierda de esa barra si tus DoTs bastan para matarlo.
 - Un **panel** dice cuánto daño por segundo le hacen tus DoTs y cuánto les queda en total, y debajo,
   uno por línea, cada DoT con los segundos que le quedan y su daño por segundo.
+- **Te avisa de cuándo relanzar cada DoT** para no dejarlo caer ni recortarlo, **encima de su botón en las
+  barras de acción**: un marco de color y un texto. Ámbar con cuenta atrás (3 s de serie, ajustable de 1 a 6 s en «Aviso previo»): prepárate, aún no (relanzarlo
+  ahora perdería ticks). Verde «¡YA!»: lánzalo ahora. Rojo «CAÍDO»: se ha caído y sigues con ese objetivo (se
+  avisa 8 s). Si un DoT no está en ninguna barra visible, el aviso sale en un icono grande encima del panel
+  (la opción permite también «siempre» o «nunca»). Las filas del panel toman el mismo color, y hay un sonido
+  opcional (apagado de serie). Funciona con las barras de Blizzard; las de Bartender, ElvUI o Dominos aún no.
+  - **Forever**: reaplicar sustituye al DoT entero (sin pandemia de duración; allí «Pandemia» es un talento de
+    críticos) y vuelve a empezar los ticks. Si el nuevo llega antes del último tick del viejo, ese tick se
+    pierde; si llega un poco tarde, solo se pierde ese rato. Por eso «¡YA!» se enciende cuando quedan los
+    segundos que tarda en lanzarse (Corrupción e Inmolar sin talentos: 2 s; Maldición de agonía: al caer),
+    con un margen de 0,1 s, para que el nuevo llegue justo después del último tick.
+  - **Retail**: «¡YA!» se enciende cuando el nuevo llegaría dentro del 30 % final (pandemia), que no pierde nada.
+  - El tiempo de lanzamiento sale de `C_Spell.GetSpellInfo` (ya con talentos como Corrupción mejorada). Si el
+    DoT no entró (resistido, inmune, disipado), el addon no lo sabe y avisará igual.
 
 ## Cómo lo sabe (y por qué no hace la cuenta él)
 

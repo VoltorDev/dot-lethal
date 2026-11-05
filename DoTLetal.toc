@@ -1,7 +1,7 @@
 ## Interface: 120100, 120105, 16001
 ## AllowLoadGameType: standard, camelot, forever
 ## ExcludeLoadGameType: classic
-## Title: DoTLetal
+## Title: DoT Lethal
 ## Notes: DoT damage per second and time left, the health your target will lose to them, and a skull if they kill it.
 ## Notes-esES: Daño por segundo y tiempo de tus DoTs, la vida que quitarán al objetivo y una calavera si lo matan.
 ## Notes-esMX: Daño por segundo y tiempo de tus DoTs, la vida que quitarán al objetivo y una calavera si lo matan.
@@ -34,3 +34,4 @@ Dots.lua
 Marker.lua
 Modules\Indicator.lua
 Modules\Calibration.lua
+Modules\Tooltip.lua

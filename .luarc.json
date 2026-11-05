@@ -10,6 +10,8 @@
   ],
   "workspace.ignoreDir": [".release", "Libs", "tools"],
   "diagnostics.globals": [
+    "TooltipDataProcessor",
+    "BreakUpLargeNumbers",
     "DoTLetalDB",
     "DoTLetalCharDB",
     "SLASH_DOTLETAL1",
@@ -25,6 +27,8 @@
     "TargetFrame",
     "CreateSettingsButtonInitializer",
     "CreateSettingsListSectionHeaderInitializer",
-    "StaticPopup_ShowGenericConfirmation"
+    "StaticPopup_ShowGenericConfirmation",
+    "SOUNDKIT",
+    "ActionButtonUtil"
   ]
 }

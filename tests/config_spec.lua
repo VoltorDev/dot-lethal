@@ -21,7 +21,7 @@ describe("opciones en Settings", function()
         assert.are.equal(0, countKeys(registry.settings))
 
         env:Fire("ADDON_LOADED", env:AddonName(), false)
-        assert.are.equal(8, countKeys(registry.settings))
+        assert.are.equal(13, countKeys(registry.settings))
         assert.are.equal(1, #registry.addOnCategories)
         assert.are.equal(ns.settingsCategory, registry.addOnCategories[1])
         assert.are.equal(ns.L.ADDON_TITLE, ns.settingsCategory:GetName())
@@ -33,6 +33,11 @@ describe("opciones en Settings", function()
             TargetFrame = { "targetFrame", "boolean" },
             Nameplate = { "nameplate", "boolean" },
             Calibrate = { "calibrate", "boolean" },
+            RenewButtons = { "renewButtons", "boolean" },
+            RenewStrip = { "renewStrip", "string" },
+            RenewLead = { "renewLead", "number" },
+            RenewSound = { "renewSound", "boolean" },
+            TooltipDps = { "tooltipDps", "boolean" },
         }
         for suffix, info in pairs(expected) do
             local setting = registry.settings[env:AddonName() .. "_" .. suffix]
@@ -54,11 +59,16 @@ describe("opciones en Settings", function()
             "Checkbox",
             "Slider",
             "Dropdown",
-            "Checkbox",
-            "Checkbox",
-            "Checkbox",
-            "Checkbox",
+            "Checkbox", -- marco de objetivo
+            "Checkbox", -- placa
+            "Checkbox", -- avisar en los botones de acción
+            "Dropdown", -- iconos de aviso sobre el panel
+            "Slider", -- segundos de aviso previo
+            "Checkbox", -- sonido al relanzar
+            "Checkbox", -- bloquear
+            "Checkbox", -- traza
             "Checkbox", -- calibrar con el medidor de daño
+            "Checkbox", -- DPS del DoT en el tooltip
             "Header",
             "Button",
             "Button", -- ver la calibración

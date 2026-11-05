@@ -213,6 +213,14 @@ local function newWidget(env, kind, name, parent, template)
     function m:Show() self._shown = true end
     function m:Hide() self._shown = false end
     function m:IsShown() return self._shown end
+    function m:IsVisible()
+        local node = self
+        while node do
+            if not node._shown then return false end
+            node = node._parent
+        end
+        return true
+    end
     function m:SetShown(shown) checkSecretArgs(kind, "SetShown", shown); self._shown = not not shown end
     function m:SetPoint(...)
         checkSecretArgs(kind, "SetPoint", ...)
@@ -870,7 +878,31 @@ function M.new(opts)
         GetSpellName = function(id) local s = state.spells[id]; return s and s[1] end,
         GetSpellDescription = function(id) local s = state.spells[id]; return s and s[2] end,
         GetSpellTexture = function(id) return state.spells[id] and 136000 + id end,
+        -- SpellInfo.castTime en milisegundos: tercer campo de opts.spells (0 si falta). opts.secretCastTime = true
+        -- lo devuelve secreto.
+        GetSpellInfo = function(id)
+            local s = state.spells[id]
+            if not s then return nil end
+            local ms = s[3] or 0
+            if secretsOn and opts.secretCastTime then ms = Secret.wrap(ms) end
+            return { name = s[1], spellID = id, castTime = ms, iconID = 136000 + id }
+        end,
     }
+    -- Barras de acción: opts.actions = { [ranura] = spellID }; env:AddActionButton(nombre, ranura) crea un botón de
+    -- Blizzard con su `.action`. C_ActionBar.HasAction y GetSpell (ActionBarFrameDocumentation.lua:466 y :433).
+    state.actions = opts.actions or {}
+    G.C_ActionBar = {
+        HasAction = function(slot) return state.actions[slot] ~= nil end,
+        GetSpell = function(slot) return state.actions[slot] end,
+    }
+    -- Sonido (Blizzard_SharedXML/Mainline/Sound.lua: PlaySound = C_Sound.PlaySound). Se apuntan las llamadas.
+    state.sounds = {}
+    G.SOUNDKIT = { RAID_WARNING = 8959 }
+    G.PlaySound = function(kit, channel)
+        checkSecretArgs("global", "PlaySound", kit, channel)
+        state.sounds[#state.sounds + 1] = { kit, channel }
+        return true
+    end
     -- Celeridad (UnitSpellHaste, en %): opts.haste; opts.secretHaste = true la devuelve secreta.
     G.UnitSpellHaste = function()
         local h = opts.haste or 0
@@ -915,6 +947,25 @@ function M.new(opts)
     -- interpola. UnitHealthPercent(unit, usePredicted, curve) evalúa vida / máximo con la curva y
     -- devuelve el color, secreto si hay restricciones (SecretReturns).
     G.Enum.LuaCurveType = { Linear = 0, Step = 1, Cosine = 2, Cubic = 3 }
+    -- Tooltips (TooltipInfoSharedDocumentation.lua / TooltipDataHandler.lua): se guardan las post-llamadas.
+    G.Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2 }
+    state.tooltipPostCalls = {}
+    G.TooltipDataProcessor = {
+        AddTooltipPostCall = function(dataType, fn)
+            state.tooltipPostCalls[#state.tooltipPostCalls + 1] = { dataType, fn }
+        end,
+    }
+    G.BreakUpLargeNumbers = function(n)
+        local s = tostring(math.floor(n))
+        local sep = G.LARGE_NUMBER_SEPARATOR or ","
+        while true do
+            local k
+            s, k = s:gsub("^(-?%d+)(%d%d%d)", "%1" .. sep .. "%2")
+            if k == 0 then
+                return s
+            end
+        end
+    end
     local function newColor(r, g, b, a)
         local c = { r = r, g = g, b = b, a = a or 1 }
         function c:GetRGBA() return self.r, self.g, self.b, self.a end
@@ -1021,6 +1072,26 @@ function M.new(opts)
     rawset(env, "SlashCmdList", {})
     env:_NewWidget("Frame", "UIParent")
     env:_NewWidget("GameTooltip", "GameTooltip", env.UIParent):Hide()
+    -- Barras de acción de Blizzard, como en el cliente: 8 barras de 12 botones (ActionButtonUtil.lua:31) con su
+    -- ranura en `.action`, vacías salvo lo que pongan opts.actions o env:SetAction.
+    G.ActionButtonUtil = {
+        ActionBarButtonNames = {
+            "ActionButton",
+            "MultiBarBottomLeftButton",
+            "MultiBarBottomRightButton",
+            "MultiBarLeftButton",
+            "MultiBarRightButton",
+            "MultiBar5Button",
+            "MultiBar6Button",
+            "MultiBar7Button",
+        },
+    }
+    rawset(env, "ActionButtonUtil", G.ActionButtonUtil)
+    for bar, prefix in ipairs(G.ActionButtonUtil.ActionBarButtonNames) do
+        for i = 1, 12 do
+            env:_NewWidget("CheckButton", prefix .. i, env.UIParent).action = (bar - 1) * 12 + i
+        end
+    end
     local chat = env:_NewWidget("MessageFrame", "DEFAULT_CHAT_FRAME", env.UIParent)
     function chat:AddMessage(text)
         state.printed[#state.printed + 1] = Secret.describe(text)
@@ -1229,6 +1300,29 @@ function M.new(opts)
         end
         state.time = target
         return fired
+    end
+
+    -- Botón de barra de acción de Blizzard (CheckButton con nombre global y `.action`), visible. Si ya existe (las
+    -- barras de Blizzard), se le cambia la ranura.
+    function env:AddActionButton(name, slot, spellID)
+        local button = rawget(self, name) or self:_NewWidget("CheckButton", name, self.UIParent)
+        button.action = slot
+        button:Show()
+        if spellID then
+            state.actions[slot] = spellID
+        end
+        return button
+    end
+
+    -- Cambia lo que hay en una ranura y avisa como el cliente.
+    function env:SetAction(slot, spellID)
+        state.actions[slot] = spellID
+        self:Fire("ACTIONBAR_SLOT_CHANGED", slot)
+    end
+
+    -- Sonidos que ha pedido el addon: { { kit, canal }, ... }.
+    function env:Sounds()
+        return state.sounds
     end
 
     -- Temporizadores pendientes (sin contar los cancelados).

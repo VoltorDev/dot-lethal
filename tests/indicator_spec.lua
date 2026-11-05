@@ -117,6 +117,7 @@ describe("marcas en la barra de vida del objetivo", function()
         env:Cast(172)
         env:Advance(18.5)
         assert.is_false(markerParts(env, targetBar(env)).anchor:IsShown())
+        env:Advance(9) -- el aviso de DoT caído (renew_spec.lua) mantiene el reloj 8 s más
         assert.are.equal(0, env:PendingTimers())
         env:Cast(172)
         env:SetTarget({ exists = true })

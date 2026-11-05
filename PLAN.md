@@ -1,6 +1,6 @@
 # Plan — DoTLetal
 
-Único plan vivo del addon. Actualizado el 20-10-2026.
+Único plan vivo del addon. Actualizado el 05-11-2026.
 
 ## Objetivo
 
@@ -22,9 +22,25 @@ propios, cuánto le queda a cada uno, qué parte de su vida se llevarán, y una 
 | Menú de opciones con todo lo de `/dotletal` (21-10-2026) | Sí | Tests del menú. **Sin ver en el cliente** |
 | Todos los DoTs del juego y talentos de ritmo detectados solos (21-10-2026, pedido de Nico: «el jugador no debería añadir nada»). `tools/generar_datos.py` con las DB2 de wago.tools: 116 DoTs en retail (12.1.5.70448) y 231 en Forever (1.60.1.70245); 35 talentos de ritmo en retail (operación 19, comprobada con Creeping Death, Rapid Contagion y Sataiel's Volition). Se quitó el añadido manual | Sí | `tests/probar_generador.py` con tablas inventadas; 133 tests del addon con los datos reales (Toque vampírico sin catálogo, Fuego lunar por nombre, Creeping Death, cambio de talentos, Forever sin celeridad). **Sin probar en el cliente** que `C_SpellBook.IsSpellKnown` ve los talentos pasivos |
 
+| Aviso de cuándo relanzar cada DoT (05-11-2026, pedido de Nico: «saber cuándo castear un DoT para no perder daño»). `Dots.RenewPhase` con el reloj propio y `C_Spell.GetSpellInfo().castTime`: fases ok / pronto (3 s antes de serie, ajustable de 1 a 6 s con «Aviso previo») / ¡YA! / caído (8 s). Forever: sin pandemia y con los ticks reiniciados al reaplicar, «¡YA!» cuando quedan los segundos de lanzamiento + 0,1 s; retail: al entrar el nuevo en el 30 %. Mismo día, a petición de Nico («que sea menos intrusivo»): el aviso va **encima del botón de cada DoT en las barras de Blizzard** (marco propio hijo del botón, con borde de color y texto; el botón se localiza por su `.action` y `C_ActionBar.GetSpell`, cualquier rango por nombre; los marcos se crean fuera de combate). Iconos encima del panel (`DoTLetalAlert`) solo para los DoTs que no están en ninguna barra visible (opción: siempre / nunca), filas coloreadas y sonido opcional. Bartender, ElvUI y Dominos no están cubiertos | Sí | 14 tests en `tests/renew_spec.lua` (fases en Forever y retail, caídos, orden, tiempo de lanzamiento secreto, iconos, sonido, opción, muestra al mover) y 7 en `tests/buttons_spec.lua` (marco y texto en el botón, otro rango, botón oculto, opciones, cambio de ranura, el botón de Blizzard no se toca); 168 tests en Lua 5.1 y LuaJIT. **Sin ver en el cliente** que el marco quede encima del icono y que no dé errores de taint («Interface action failed») en combate. Regla de Forever según guías de terceros (classicwow.gg: «Pandemia» es un talento de críticos y no conserva duración al reaplicar), **sin confirmar en el cliente**: que reaplicar no arrastre tiempo y que reinicie el reloj de los ticks |
+
 ## Pendiente
 
-1. **Probar en retail con Brujete (aflicción)**. El 21-10-2026 Nico lo probó y dice que «parece que va
+1. **Probar el aviso de relanzar en Forever con Fear Ofme (brujo 7)**, en un enemigo con vida de sobra y solo:
+   - Tener Corrupción, Inmolar y Maldición de agonía en las barras de Blizzard. `/reload`.
+   - Lanzar Corrupción y mirar su botón. Con unos 5 s restantes (3 s de aviso previo + 2 s de lanzamiento) el botón se enmarca en ámbar con cuenta atrás;
+     con 2,1 s, verde «¡YA!»: lanzarla entonces y comprobar en el texto flotante de daño que cae el último tick de
+     la vieja y la nueva empieza sin hueco. `/dump C_Spell.GetSpellInfo(172).castTime` debe coincidir, en milisegundos,
+     con el tiempo de lanzamiento del tooltip (si sale 0 con un hechizo que no es instantáneo, el «¡YA!» llega tarde).
+   - Comprobar la regla de Forever: con Corrupción a 9 s, relanzarla y ver en el marco de objetivo de Blizzard (o
+     pasando el ratón por el icono del debuff) si su duración vuelve a 18 s exactos (sin pandemia, lo que supone
+     el addon) o a más (habría pandemia: cambiar `Dots.Configure`). Ver también si el siguiente tick llega 3 s
+     después del recast (reloj reiniciado, lo que supone el addon) o cuando tocaba.
+   - Dejar caer la Maldición de agonía: debe salir «CAÍDO» en rojo, parpadeando, unos 8 s; al relanzarla, se va.
+   - Activar «Sonido al tocar relanzar» y ver que suena una vez por DoT, no en bucle.
+   - Taint: tras varios combates con avisos, ningún «Interface action failed because of an AddOn» ni errores en
+     BugSack, y los botones siguen lanzando en combate. Quitar un DoT de la barra: su aviso pasa al icono sobre el panel.
+2. **Probar en retail con Brujete (aflicción)**. El 21-10-2026 Nico lo probó y dice que «parece que va
    bien», sin datos concretos; Claude no pudo verlo (sin acceso a `wow.exe` por control remoto). Falta
    confirmar cada punto:
    - Reiniciar el cliente la primera vez, ya que el addon es nuevo.
@@ -43,6 +59,6 @@ propios, cuánto le queda a cada uno, qué parte de su vida se llevarán, y una 
      `/dump C_DamageMeter.IsDamageMeterAvailable()`, `/dump C_DamageMeter.GetSessionDurationSeconds(1)` y
      `/run local s=C_DamageMeter.GetCombatSessionSourceFromType(1,0,UnitGUID("player")) print(canaccesstable(s)) for _,x in ipairs(s.combatSpells) do print(x.spellID,C_Spell.GetSpellName(x.spellID),x.totalAmount,x.overkillAmount) end`.
      Luego `/dotletal calibracion`.
-2. Lo mismo en Forever a partir del 05-11-2026.
-3. Detectar resistencias o inmunidades: hoy se cuenta el DoT aunque no entre.
-4. Destripar y Ruptura (dependen de los puntos de combo), si se juega druida feral o pícaro.
+3. Lo mismo en Forever a partir del 05-11-2026.
+4. Detectar resistencias o inmunidades: hoy se cuenta el DoT aunque no entre.
+5. Destripar y Ruptura (dependen de los puntos de combo), si se juega druida feral o pícaro.

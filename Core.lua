@@ -15,7 +15,14 @@ ns.DEFAULTS = {
     panel = true, -- panel propio con la lista de DoTs
     targetFrame = true, -- marca en la barra de vida del marco de objetivo
     nameplate = true, -- marca en la placa del objetivo
+    -- Cuándo relanzar cada DoT (Dots.RenewPhase): encima de su botón de acción y, en iconos sobre el panel,
+    -- "fallback" solo los que no están en ninguna barra visible, "always" todos o "never".
+    renewButtons = true,
+    renewStrip = "fallback",
+    renewLead = 3, -- segundos de aviso previo (ámbar) antes del «¡YA!»
+    renewSound = false, -- sonido al pasar un DoT a «ya» o caerse
     debug = false,
+    tooltipDps = true, -- Modules/Tooltip.lua: daño por segundo del DoT en la descripción del hechizo
     calibrate = true, -- Modules/Calibration.lua: ajustar el daño de cada DoT con el medidor de daño al salir de combate
     frame = { point = "CENTER", relativePoint = "CENTER", x = 0, y = -180 },
 }

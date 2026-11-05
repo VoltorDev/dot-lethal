@@ -83,6 +83,64 @@ function module:OnInitialize()
     nameplate:SetValueChangedCallback(OnSettingChanged)
     Settings.CreateCheckbox(category, nameplate, L.OPT_NAMEPLATE_TT)
 
+    local renewButtons = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_RenewButtons",
+        "renewButtons",
+        db,
+        Settings.VarType.Boolean,
+        L.OPT_RENEW,
+        ns.DEFAULTS.renewButtons
+    )
+    renewButtons:SetValueChangedCallback(OnSettingChanged)
+    Settings.CreateCheckbox(category, renewButtons, L.OPT_RENEW_TT)
+
+    local renewStrip = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_RenewStrip",
+        "renewStrip",
+        db,
+        Settings.VarType.String,
+        L.OPT_RENEW_STRIP,
+        ns.DEFAULTS.renewStrip
+    )
+    renewStrip:SetValueChangedCallback(OnSettingChanged)
+    local function GetStripOptions()
+        local container = Settings.CreateControlTextContainer()
+        container:Add("fallback", L.STRIP_FALLBACK)
+        container:Add("always", L.STRIP_ALWAYS)
+        container:Add("never", L.STRIP_NEVER)
+        return container:GetData()
+    end
+    Settings.CreateDropdown(category, renewStrip, GetStripOptions, L.OPT_RENEW_STRIP_TT)
+
+    local renewLead = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_RenewLead",
+        "renewLead",
+        db,
+        Settings.VarType.Number,
+        L.OPT_RENEW_LEAD,
+        ns.DEFAULTS.renewLead
+    )
+    renewLead:SetValueChangedCallback(OnSettingChanged)
+    local leadOptions = Settings.CreateSliderOptions(1, 6, 0.5)
+    leadOptions:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(value)
+        return ("%.1f s"):format(value)
+    end)
+    Settings.CreateSlider(category, renewLead, leadOptions, L.OPT_RENEW_LEAD_TT)
+
+    local renewSound = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_RenewSound",
+        "renewSound",
+        db,
+        Settings.VarType.Boolean,
+        L.OPT_RENEW_SOUND,
+        ns.DEFAULTS.renewSound
+    )
+    Settings.CreateCheckbox(category, renewSound, L.OPT_RENEW_SOUND_TT)
+
     -- /dotletal mover y /dotletal traza.
     local locked = Settings.RegisterAddOnSetting(
         category,
@@ -117,6 +175,17 @@ function module:OnInitialize()
     )
     calibrate:SetValueChangedCallback(OnSettingChanged)
     Settings.CreateCheckbox(category, calibrate, L.OPT_CALIBRATE_TT)
+
+    local tooltipDps = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_TooltipDps",
+        "tooltipDps",
+        db,
+        Settings.VarType.Boolean,
+        L.OPT_TOOLTIP_DPS,
+        ns.DEFAULTS.tooltipDps
+    )
+    Settings.CreateCheckbox(category, tooltipDps, L.OPT_TOOLTIP_DPS_TT)
 
     self:BuildDots(category, layout)
     self:BuildTools(layout)

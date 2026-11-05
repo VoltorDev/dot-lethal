@@ -24,7 +24,13 @@ globals = {
 
 -- API de WoW que el addon lee. Añade aquí cada global nueva que uses.
 read_globals = {
+    "TooltipDataProcessor",
+    "BreakUpLargeNumbers",
     "AbbreviateNumbers",
+    "PlaySound",
+    "C_ActionBar",
+    "ActionButtonUtil",
+    "SOUNDKIT",
     "canaccesstable",
     "C_CurveUtil",
     "C_DamageMeter",

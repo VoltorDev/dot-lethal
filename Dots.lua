@@ -206,6 +206,7 @@ function Dots.NewEntry(def, description, now, haste, previous)
     local entry = {
         start = start,
         duration = duration,
+        base = base, -- duración de la descripción, sin lo arrastrado: mide la ventana de pandemia
         interval = interval,
         unit = TickUnit(def, total, base) * factor,
         weights = def.weights,
@@ -221,6 +222,54 @@ function Dots.NewEntry(def, description, now, haste, previous)
     }
     entry.total = Dots.Remaining(entry, now)
     return entry
+end
+
+-- Renovación -----------------------------------------------------------------------------------------------
+-- Cuándo volver a lanzar un DoT para no perder daño. Todo sale del reloj propio (números normales): las auras
+-- del objetivo, secretas en combate, no se leen.
+--   Forever (Vanilla): reaplicar sustituye al DoT entero, sin pandemia, y los ticks vuelven a empezar. Si el nuevo
+--   llega antes del último tick del viejo, ese tick (y los que falten) se pierden; si llega tarde, solo se pierde
+--   el rato sin DoT. Lo bueno es que llegue justo después del último tick: empezar a lanzarlo cuando le queden
+--   `tiempo de lanzamiento` segundos (instantáneo: al caer).
+--   Retail: hasta un 30 % de la duración se conserva (pandemia); basta con que llegue dentro de esa ventana.
+-- Fases: "ok" (aún no), "soon" (prepárate: queda menos de LEAD para lanzarlo), "now" (lánzalo ya) y "dropped"
+-- (se ha caído y sigues con el objetivo: relánzalo).
+Dots.LEAD = 3 -- segundos de aviso previo (ámbar); lo cambia la opción renewLead
+Dots.LATENCY = 0.1 -- margen para que el nuevo no llegue un pelo antes del último tick (Forever)
+Dots.DROPPED_HOLD = 8 -- segundos que se avisa de un DoT caído si no se relanza
+
+-- Fase de renovación de una entrada: fase y segundos que faltan para empezar a lanzarlo (0 si ya toca).
+function Dots.RenewPhase(entry, now, castTime)
+    local _, secs = Dots.Remaining(entry, now)
+    if secs <= 0 then
+        return "dropped", 0
+    end
+    -- Lo que le quedará al viejo cuando llegue el nuevo, si se empieza a lanzar ahora.
+    local landing = secs - (castTime or 0)
+    local open = rules.pandemic and PANDEMIC * (entry.base or entry.duration) or Dots.LATENCY
+    local wait = landing - open
+    if wait <= 0 then
+        return "now", 0
+    elseif wait <= Dots.LEAD then
+        return "soon", wait
+    end
+    return "ok", wait
+end
+
+-- Tiempo de lanzamiento de un hechizo en segundos (C_Spell.GetSpellInfo().castTime, en milisegundos; ya trae los
+-- talentos como Corrupción mejorada). Si llegara secreto, el último leído.
+local castTimes = {}
+
+function Dots.CastTime(spellID)
+    if not spellID then
+        return 0
+    end
+    local info = C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID)
+    local ms = info and info.castTime
+    if type(ms) == "number" and not issecretvalue(ms) then
+        castTimes[spellID] = math.max(ms, 0) / 1000
+    end
+    return castTimes[spellID] or 0
 end
 
 -- Calibración ----------------------------------------------------------------------------------------------
@@ -291,6 +340,8 @@ local byID = {} -- spellID que se lanza -> definición
 local byName = {} -- nombre localizado -> definición (otros rangos y variantes con otro ID)
 local targets = {} -- clave -> { [nombre] = entrada }
 local currentKey
+-- DoTs que se han caído del objetivo actual sin relanzarlos: [nombre] = { name, icon, spellID, at }.
+local dropped = {}
 
 -- ¿Tiene el jugador ese hechizo o talento? C_SpellBook.IsSpellKnown (el IsPlayerSpell de siempre es ahora un
 -- alias suyo, Deprecated_SpellBook.lua:11-14). INFERENCIA: comprobar en el cliente que ve los talentos pasivos.
@@ -403,6 +454,7 @@ function Dots.OnTargetChanged(now)
         end
     end
     targets[CURRENT] = nil
+    wipe(dropped)
     currentKey = UnitExists("target") and TargetKey() or nil
 end
 
@@ -444,7 +496,8 @@ function Dots.OnCast(spellID, now)
         ns.Debug("descripción no reconocida:", name, description)
         return false
     end
-    entry.name, entry.icon = name, C_Spell.GetSpellTexture(spellID)
+    entry.name, entry.icon, entry.spellID = name, C_Spell.GetSpellTexture(spellID), spellID
+    dropped[name] = nil
     if dots[name] then
         Credit(dots[name], now, currentKey) -- lo que hizo la aplicación anterior hasta ahora
     end
@@ -455,28 +508,60 @@ end
 
 -- Estado de los DoTs propios sobre el objetivo actual:
 --   damage: daño que les queda en total; dps: daño por segundo ahora; list: uno por DoT
---   { name, icon, damage, seconds, dps }, de menos a más tiempo. Borra lo que ya ha terminado.
+--   { name, icon, damage, seconds, dps, phase, wait }, de menos a más tiempo (phase y wait: Dots.RenewPhase).
+--   alerts: los que piden atención, de más a menos urgente: { name, icon, phase, wait }; incluye los caídos.
+-- Borra lo que ya ha terminado (y lo apunta como caído).
+local URGENCY = { dropped = 1, now = 2, soon = 3 }
+
 function Dots.TargetState(now)
-    local state = { damage = 0, dps = 0, list = {} }
+    local state = { damage = 0, dps = 0, list = {}, alerts = {} }
     local dots = currentKey and targets[currentKey]
-    if not dots then
-        return state
-    end
-    for name, entry in pairs(dots) do
+    for name, entry in pairs(dots or {}) do
         Credit(entry, now, currentKey)
         local left, secs, dps = Dots.Remaining(entry, now)
         if left <= 0 then
             dots[name] = nil
+            local ended = entry.start + entry.duration
+            dropped[name] = { name = name, icon = entry.icon, spellID = entry.spellID, at = ended }
         else
+            local phase, wait = Dots.RenewPhase(entry, now, Dots.CastTime(entry.spellID))
             state.damage = state.damage + left
             state.dps = state.dps + dps
-            state.list[#state.list + 1] = { name = name, icon = entry.icon, damage = left, seconds = secs, dps = dps }
+            local item = {
+                name = name,
+                icon = entry.icon,
+                damage = left,
+                seconds = secs,
+                dps = dps,
+                phase = phase,
+                wait = wait,
+            }
+            state.list[#state.list + 1] = item
+            if phase ~= "ok" then
+                state.alerts[#state.alerts + 1] = item
+            end
+        end
+    end
+    for name, drop in pairs(dropped) do
+        if now - drop.at > Dots.DROPPED_HOLD then
+            dropped[name] = nil
+        else
+            state.alerts[#state.alerts + 1] = { name = name, icon = drop.icon, phase = "dropped", wait = 0 }
         end
     end
     table.sort(state.list, function(a, b)
         return a.seconds < b.seconds
     end)
-    if next(dots) == nil then
+    table.sort(state.alerts, function(a, b)
+        if URGENCY[a.phase] ~= URGENCY[b.phase] then
+            return URGENCY[a.phase] < URGENCY[b.phase]
+        end
+        if a.wait ~= b.wait then
+            return a.wait < b.wait
+        end
+        return a.name < b.name
+    end)
+    if dots and next(dots) == nil then
         targets[currentKey] = nil
     end
     return state
@@ -502,6 +587,7 @@ function Dots.Clear()
         ledger.dirty = true
     end
     wipe(targets)
+    wipe(dropped)
     currentKey = nil
 end
 
