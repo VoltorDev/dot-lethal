@@ -49,6 +49,10 @@ Works on **Retail (Midnight 12.1)** and **World of Warcraft: Forever**.
 - **Calibrates itself with your real damage**: after a single-target fight it compares each DoT's real damage in
   Blizzard's damage meter with its estimate and learns a factor per spell and character (crits, mastery and
   everything the tooltip does not say). Needs the damage meter enabled in the game options.
+- **When to recast** each DoT, right on its action button: amber with a countdown (not yet), green **NOW!** (recast)
+  and red **DROPPED** for 8 s if it falls off. DoTs that are not on a visible bar show as icons above the panel.
+- **Damage per second in the spell description**: every DoT tooltip (spellbook, action bars, links) adds a line
+  such as "Damage per second: 45.7 (822 over 18 sec)".
 
 ## How it works with Midnight's secret values
 
@@ -117,3 +121,12 @@ First public release.
 Antes de publicar como Release: verlo en el cliente (`/reload`, BugSack limpio, franja, calavera y calibración).
 
 **1.0.1, nombre en inglés (05-11-2026, por orden de Nico: «Nombres en inglés siempre»):** el `## Title` del TOC pasa a «DoT Lethal» y el zip a `mods\wow\dist\DoTLethal-1.0.1.zip`. Es el zip publicado anterior con solo el título y la versión cambiados (los cambios sin publicar del repo no entran); la carpeta interna sigue siendo `DoTLetal`, así que las SavedVariables y la junction de `Interface\AddOns` no cambian. Subido como Release con las mismas versiones de juego; pasa por moderación. Desde ahora `empaquetar-wow.py` nombra el zip por el `## Title`.
+
+**1.1.0 (05-11-2026, por orden de Nico: «sube los addons que faltan»):** aviso de relanzar en los botones de acción y DPS del DoT en la descripción. `mods\wow\dist\DoTLethal-1.1.0.zip`; descripción del proyecto ampliada con las dos funciones. Sin ver en el cliente.
+
+## Changelog del fichero 1.1.0
+
+```markdown
+- When to recast each DoT, on its action button: amber countdown, green NOW! and red DROPPED; icons above the panel for DoTs not on a visible bar. Options: warning lead time (3 s by default) and an optional sound.
+- Every DoT tooltip shows its damage per second (total damage over its duration). Option to turn it off.
+```
