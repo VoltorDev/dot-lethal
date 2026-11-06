@@ -26,7 +26,7 @@ L.MODE_COMPACT = "Compacto"
 L.DEBUG_HEADER = "Diagnóstico (pégalo al informar de un problema):"
 
 L.HEADER = "DoTs %s/s · quedan %s"
-L.ROW = "%.0f s · %s/s"
+L.ROW = "%.0f s · %s/s · %s"
 L.OPT_TARGETFRAME = "Marcar el marco de objetivo"
 L.OPT_TARGETFRAME_TT = "En la barra de vida del marco de objetivo: la vida que perderá por tus DoTs y una calavera"
     .. " si lo matan."

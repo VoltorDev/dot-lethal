@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 06-11-2026: cada fila del panel muestra, además del tiempo y el daño por segundo, el daño que le queda a ese DoT («15 s · 20/s · 300»). El panel es algo más ancho para que quepa.
+
 ## 1.1.0 (05-11-2026)
 
 - 05-11-2026: la descripción de cada hechizo con daño en el tiempo (libro, barras de acción, enlaces) añade su daño por segundo: «Daño por segundo: 45,7 (822 en 18 s)». Solo en los DoTs que el addon conoce; en los que también golpean al lanzarse cuenta solo la parte en el tiempo. Opción nueva «DPS de los DoTs en la descripción» (activada).

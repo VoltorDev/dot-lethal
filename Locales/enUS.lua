@@ -29,7 +29,7 @@ L.MODE_COMPACT = "Compact"
 L.DEBUG_HEADER = "Diagnostics (paste this when reporting a problem):"
 
 L.HEADER = "DoTs %s/s · %s left"
-L.ROW = "%.0fs · %s/s"
+L.ROW = "%.0fs · %s/s · %s"
 L.OPT_TARGETFRAME = "Mark the target frame"
 L.OPT_TARGETFRAME_TT = "On the target frame health bar: the health it will lose to your DoTs"
     .. " and a skull if they kill it."

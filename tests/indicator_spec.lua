@@ -136,7 +136,7 @@ describe("marcas en la barra de vida del objetivo", function()
 end)
 
 describe("panel", function()
-    it("enseña daño por segundo, daño restante y cada DoT con su tiempo", function()
+    it("enseña daño por segundo, daño restante y cada DoT con su tiempo, DPS y daño", function()
         local env = boot({ 5000, 8000 })
         env:Cast(172)
         env:Cast(348)
@@ -147,9 +147,9 @@ describe("panel", function()
         contains(texts[1]:GetText(), "900")
         assert.is_true(Secret.is(texts[2]:GetText())) -- vida del objetivo: secreta, solo se pinta
         assert.are.equal("Immolate", texts[3]:GetText())
-        contains(texts[4]:GetText(), "15s · 20/s")
+        contains(texts[4]:GetText(), "15s · 20/s · 300") -- y el daño que le queda a ese DoT
         assert.are.equal("Corruption", texts[5]:GetText())
-        contains(texts[6]:GetText(), "18s · 33/s")
+        contains(texts[6]:GetText(), "18s · 33/s · 600")
     end)
 
     it("modo compacto: solo los totales", function()

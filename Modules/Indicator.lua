@@ -8,7 +8,7 @@ local module = ns:NewModule("Indicator")
 -- objetivo (panel, marco de objetivo y su placa), lo que perderá por DoTs y una calavera si muere.
 -- La vida del objetivo solo se entrega a Marker; aquí no se compara ni se opera con ella.
 local TICK = 0.2 -- segundos entre actualizaciones mientras quedan DoTs
-local WIDTH = 170
+local WIDTH = 200
 local ROW = 14
 local MAX_ROWS = 6
 -- Avisos de renovación (Dots.RenewPhase): iconos grandes encima del panel, uno por DoT que pide atención.
@@ -494,7 +494,7 @@ function module:Update()
             local color = PHASE_COLOR[dot.phase] or PHASE_COLOR.ok
             row.name:SetTextColor(color[1], color[2], color[3])
             row.info:SetTextColor(color[1], color[2], color[3])
-            row.info:SetFormattedText(L.ROW, dot.seconds, Abbrev(dot.dps))
+            row.info:SetFormattedText(L.ROW, dot.seconds, Abbrev(dot.dps), Abbrev(dot.damage))
         end
         row.icon:SetShown(dot and true or false)
         row.name:SetShown(dot and true or false)
