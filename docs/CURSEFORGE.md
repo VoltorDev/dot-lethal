@@ -130,3 +130,5 @@ Antes de publicar como Release: verlo en el cliente (`/reload`, BugSack limpio, 
 - When to recast each DoT, on its action button: amber countdown, green NOW! and red DROPPED; icons above the panel for DoTs not on a visible bar. Options: warning lead time (3 s by default) and an optional sound.
 - Every DoT tooltip shows its damage per second (total damage over its duration). Option to turn it off.
 ```
+
+**1.2.0 (06-11-2026, por Claude con la sesión de Nico en Chrome, por orden suya: «Sí, súbelas»):** fichero «DoT Lethal 1.2.0», `mods\wow\dist\DoTLethal-1.2.0.zip`, tipo **Release**, versiones Forever 1.60.1 y Retail 12.1.5/12.1.0, publicación automática al aprobarse. Changelog en inglés que nombra lo nuevo: daño restante de cada DoT en las filas del panel. Aprobado por CurseForge a los pocos minutos. Pasa las comprobaciones fuera del juego (06-11-2026); **sin probar en el cliente**.
