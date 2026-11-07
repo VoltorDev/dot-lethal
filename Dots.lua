@@ -21,9 +21,28 @@ ns.Dots = Dots
 --   mode "tick": la descripción da el daño de cada tick (Succionar vida de Classic).
 --   mode "max":  el daño es el mayor número antes de la duración (Putrefacción de alma: objetivo principal).
 local AGONY_CLASSIC = { 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 1.5, 1.5, 1.5, 1.5 }
+--   physical: sangrado (daño físico). Se puede esquivar o parar, y sus ticks no se distinguen de los golpes cuerpo
+--             a cuerpo; ver Dots.OnCombat.
+local BLEED = { physical = true }
 Dots.SPECIALS = {
-    Forever = { [980] = { weights = AGONY_CLASSIC }, [18265] = { mode = "tick" } },
-    Retail = { [980] = { ramp = 8 }, [386997] = { mode = "max" } },
+    Forever = {
+        [980] = { weights = AGONY_CLASSIC },
+        [18265] = { mode = "tick" },
+        [772] = BLEED, -- Desgarrar
+        [703] = BLEED, -- Garrote
+        [1943] = BLEED, -- Ruptura
+        [1822] = BLEED, -- Arañazo
+        [1079] = BLEED, -- Destripar
+    },
+    Retail = {
+        [980] = { ramp = 8 },
+        [386997] = { mode = "max" },
+        [772] = BLEED,
+        [703] = BLEED,
+        [1943] = BLEED,
+        [1822] = BLEED,
+        [1079] = BLEED,
+    },
 }
 
 -- Reglas del cliente. Retail: reaplicar conserva hasta un 30 % de la duración (pandemia). La celeridad acelera
@@ -342,6 +361,8 @@ local targets = {} -- clave -> { [nombre] = entrada }
 local currentKey
 -- DoTs que se han caído del objetivo actual sin relanzarlos: [nombre] = { name, icon, spellID, at }.
 local dropped = {}
+local pending -- último DoT lanzado cuyo resultado aún no se sabe: { key, name, entry, previous, at, landed }
+local lastOutcome -- último resultado sobre el objetivo: { key, avoided, action, school, at }
 
 -- ¿Tiene el jugador ese hechizo o talento? C_SpellBook.IsSpellKnown (el IsPlayerSpell de siempre es ahora un
 -- alias suyo, Deprecated_SpellBook.lua:11-14). INFERENCIA: comprobar en el cliente que ve los talentos pasivos.
@@ -455,6 +476,7 @@ function Dots.OnTargetChanged(now)
     end
     targets[CURRENT] = nil
     wipe(dropped)
+    pending, lastOutcome = nil, nil
     currentKey = UnitExists("target") and TargetKey() or nil
 end
 
@@ -497,12 +519,111 @@ function Dots.OnCast(spellID, now)
         return false
     end
     entry.name, entry.icon, entry.spellID = name, C_Spell.GetSpellTexture(spellID), spellID
+    entry.physical = def.physical == true
     dropped[name] = nil
-    if dots[name] then
-        Credit(dots[name], now, currentKey) -- lo que hizo la aplicación anterior hasta ahora
+    local previous = dots[name]
+    if previous then
+        Credit(previous, now, currentKey) -- lo que hizo la aplicación anterior hasta ahora
     end
     targets[currentKey] = dots
     dots[name] = entry
+    pending = { key = currentKey, name = name, entry = entry, previous = previous, at = now }
+    -- El resultado puede llegar un instante antes que UNIT_SPELLCAST_SUCCEEDED.
+    local last = lastOutcome
+    if last and last.avoided and last.key == currentKey and now - last.at <= Dots.OUTCOME_LOOKBACK then
+        Dots.OnCombat(last.action, last.school, now, true)
+    end
+    return true
+end
+
+-- Fallos ----------------------------------------------------------------------------------------------------
+-- Un DoT fallado (fallo, resistido, inmune...) dispara UNIT_SPELLCAST_SUCCEEDED igual que uno que entra: el addon
+-- lo daba por puesto y contaba su daño. Sin registro de combate, el aviso es UNIT_COMBAT sobre el objetivo, cuyo
+-- tipo de resultado (MISS, RESIST, IMMUNE...) y escuela se leen también en combate; la cantidad es secreta y aquí
+-- no se usa. UNIT_COMBAT no dice de qué ataque es el resultado, pero el del propio hechizo llega casi a la vez que
+-- el lanzamiento: el primer resultado sobre el objetivo en esa ventana decide. Idea tomada de Does It Die (Joe
+-- Greive, MIT), reescrita para este addon.
+--   - Si un fallo de otro (tu mascota, otro jugador) cae en ese mismo instante, el DoT se quita aunque esté
+--     puesto: el error es por lo bajo, nunca anuncia una muerte que no llega.
+--   - Un hechizo no se esquiva ni se para: DODGE, PARRY y DEFLECT solo cuentan para los sangrados. Un fallo en
+--     escuela física junto a un DoT de hechizo es un golpe cuerpo a cuerpo de otro.
+--   - Con parte directa (Inmolar, Arañazo), si esa parte acierta solo un IMMUNE posterior quita el DoT (un
+--     sangrado sobre un PNJ inmune a sangrados).
+Dots.OUTCOME_WINDOW = 0.4
+Dots.OUTCOME_LOOKBACK = 0.25
+local AVOIDED = {
+    MISS = true,
+    RESIST = true,
+    IMMUNE = true,
+    EVADE = true,
+    REFLECT = true,
+    DODGE = true,
+    PARRY = true,
+    DEFLECT = true,
+}
+local MELEE_ONLY = { DODGE = true, PARRY = true, DEFLECT = true }
+local PHYSICAL = 1 -- máscara de escuela física
+
+-- ¿Ese resultado puede ser del DoT? `school` puede faltar o ser secreta: entonces no descarta nada.
+local function CouldBeDot(entry, action, school)
+    local known = type(school) == "number" and not issecretvalue(school)
+    if entry.physical then
+        return not known or school == PHYSICAL
+    end
+    if MELEE_ONLY[action] then
+        return false
+    end
+    return not known or school ~= PHYSICAL
+end
+
+-- Resultado de un ataque sobre el objetivo (UNIT_COMBAT de "target"). Devuelve true si ha quitado un DoT.
+-- `early`: un resultado guardado que llegó antes que el lanzamiento (no se vuelve a guardar).
+function Dots.OnCombat(action, school, now, early)
+    if issecretvalue(action) or type(action) ~= "string" then
+        return false
+    end
+    local avoided = AVOIDED[action] == true
+    if not avoided and action ~= "WOUND" and action ~= "ABSORB" then
+        return false
+    end
+    if not early then
+        -- Antes del primer lanzamiento aún no hay clave del objetivo: se toma ahora, como hará OnCast.
+        currentKey = currentKey or (UnitExists("target") and TargetKey() or nil)
+        lastOutcome = { key = currentKey, avoided = avoided, action = action, school = school, at = now }
+    end
+    local cast = pending
+    if not cast or cast.key ~= currentKey then
+        return false
+    end
+    if now - cast.at > Dots.OUTCOME_WINDOW then
+        pending = nil
+        return false
+    end
+    if not avoided then
+        -- La parte directa del hechizo ha entrado (en un sangrado puede ser un golpe de otro: no se distinguen).
+        if CouldBeDot(cast.entry, action, school) then
+            cast.landed = true
+        end
+        return false
+    end
+    if (cast.landed and action ~= "IMMUNE") or not CouldBeDot(cast.entry, action, school) then
+        return false
+    end
+    pending = nil
+    local dots = targets[cast.key]
+    if not dots or dots[cast.name] ~= cast.entry then
+        return false
+    end
+    if cast.previous and Dots.Remaining(cast.previous, now) > 0 then
+        dots[cast.name] = cast.previous -- relanzado y fallado: sigue el de antes
+    else
+        dots[cast.name] = nil
+        if next(dots) == nil then
+            targets[cast.key] = nil
+        end
+        dropped[cast.name] = { name = cast.name, icon = cast.entry.icon, spellID = cast.entry.spellID, at = now }
+    end
+    ns.Debug("DoT fallado:", cast.name, action)
     return true
 end
 
@@ -588,6 +709,7 @@ function Dots.Clear()
     end
     wipe(targets)
     wipe(dropped)
+    pending, lastOutcome = nil, nil
     currentKey = nil
 end
 

@@ -97,6 +97,7 @@ function module:OnEnable()
     frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
     frame:RegisterUnitEvent("UNIT_HEALTH", "target")
     frame:RegisterUnitEvent("UNIT_MAXHEALTH", "target")
+    frame:RegisterUnitEvent("UNIT_COMBAT", "target") -- DoTs fallados (Dots.OnCombat)
     frame:RegisterEvent("PLAYER_TARGET_CHANGED")
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
@@ -174,6 +175,9 @@ function module:OnEvent(event, ...)
         if Dots.OnCast(spellID, GetTime()) then
             self:StartTicker()
         end
+    elseif event == "UNIT_COMBAT" then
+        local _, action, _, _, school = ...
+        Dots.OnCombat(action, school, GetTime())
     elseif event == "PLAYER_TARGET_CHANGED" then
         Dots.OnTargetChanged()
         Dots.Prune(GetTime())

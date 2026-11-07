@@ -1,5 +1,9 @@
 # Changelog
 
+## Sin publicar
+
+- 07-11-2026: un DoT fallado (fallo, resistido, inmune; esquivado o parado si es un sangrado) ya no cuenta su daño en la barra: se quita y sale como «CAÍDO» para relanzarlo. Si era un relanzamiento, sigue contando el anterior. El aviso viene del resultado del ataque sobre el objetivo justo al lanzarlo (idea tomada de Does It Die, MIT). Si en ese mismo instante falla un golpe de tu mascota o de otro jugador, puede quitar un DoT que sí entró: el error es siempre por lo bajo.
+
 ## 1.2.0 (06-11-2026)
 
 - 06-11-2026: cada fila del panel muestra, además del tiempo y el daño por segundo, el daño que le queda a ese DoT («15 s · 20/s · 300»). El panel es algo más ancho para que quepa.
