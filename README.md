@@ -3,7 +3,8 @@
 Addon para World of Warcraft **retail** (Midnight, 12.1) y **Forever**. Mientras tus DoTs hacen daño:
 
 - **En la barra de vida del objetivo** (marco de objetivo, su placa y el panel del addon) pinta en
-  naranja el trozo de vida que se llevarán tus DoTs.
+  naranja el trozo de vida que se llevarán tus DoTs. Lo mismo en el **marco de foco** y en la **placa de cada
+  enemigo** con DoTs tuyos, aunque no sea tu objetivo.
 - Pone una **calavera** a la izquierda de esa barra si tus DoTs bastan para matarlo.
 - Un **panel** dice cuánto daño por segundo le hacen tus DoTs y cuánto les queda en total, y debajo,
   uno por línea, cada DoT con los segundos que le quedan y su daño por segundo.
@@ -51,7 +52,17 @@ objetivo también son secretas:
    cada DoT en el medidor con lo que había estimado y guarda un factor por hechizo y personaje, que aplica en los
    combates siguientes. Así recoge críticos, maestría y lo demás que la descripción no dice. Solo aprende de
    combates contra un único objetivo, con al menos 3 ticks del DoT, y no de los hechizos con golpe directo (el
-   medidor los suma). Necesita el medidor de daño activado en las opciones del juego.
+   medidor los suma). Necesita el medidor de daño activado en las opciones del juego. Con el **modo prudente**,
+   la calibración solo puede bajar el daño previsto: no cuenta con críticos que aún no han salido.
+6. **Se da cuenta de los fallos.** Si el resultado del ataque sobre el enemigo justo al lanzarlo es un fallo,
+   resistido o inmune (o esquivado o parado, en un sangrado), el DoT no cuenta y sale «CAÍDO». Si no avisa, pero
+   pasan dos ticks sin que llegue ningún golpe a su hora, también se quita.
+7. **Sabe a quién iba cada DoT**: lo apunta al pulsar el hechizo, así que cambiar de objetivo justo después, una
+   macro al foco o lanzar al ratón no lo ponen en otro enemigo. Al cambiar de objetivo no se olvida: con la
+   identidad del PNJ oculta (mazmorras), sigue a cada enemigo por su placa.
+
+   Las ideas de los puntos 6 y 7 y de las placas vienen de [Does It Die](https://github.com/swirllyman/DoesItDie)
+   (Joe Greive, licencia MIT); el código es propio.
 
 ## Uso
 
@@ -60,7 +71,8 @@ objetivo también son secretas:
 - `/dotletal lista` enseña tus DoTs y sus segundos entre ticks con tus talentos.
 - `/dotletal` o el botón del compartimento de addons abre las opciones (Opciones > AddOns > DoTLetal), con todo
   lo de los comandos: activar, escala, modo (Clásico con la lista o Compacto con solo los totales), marcar el
-  marco de objetivo y la placa, bloquear el panel, traza, ver tus DoTs, diagnóstico y restablecer (con
+  marco de objetivo, las placas y el foco, modo prudente, bloquear el panel, traza, ver tus DoTs, diagnóstico y
+  restablecer (con
   confirmación).
 - `/dotletal calibracion` enseña el factor aprendido de cada DoT; `/dotletal calibracion borrar` lo olvida.
 - `/dotletal traza` activa mensajes de depuración (por ejemplo, si no entiende la descripción de un DoT).
@@ -75,15 +87,18 @@ el jugador puede aprender con un efecto de daño periódico sobre otro; quedan f
 ## Límites (conviene saberlos)
 
 - **Solo cuenta tus DoTs.** El daño de otros jugadores no entra; si te ayudan, morirá antes.
-- **No sabe si el DoT ha entrado.** Si el objetivo lo resiste o es inmune, el addon lo cuenta igual.
-- **Supone que el DoT va al objetivo actual.** Lanzado por mouseover o foco, se apunta mal.
-- **Al cambiar de objetivo puede olvidarlo.** Si el juego oculta la identidad del PNJ (GUID secreto),
-  solo sigue al objetivo actual y borra sus DoTs al cambiar.
+- **Los fallos se deducen, no se leen.** El juego no dice de qué ataque es cada resultado: si en el mismo
+  instante falla un golpe de tu mascota o de otro jugador, puede quitar un DoT que sí entró (el error es por lo
+  bajo, nunca anuncia una muerte que no llega). Y un DoT resistido sobre un enemigo fuera de la vista (sin placa,
+  sin ser objetivo ni foco) sigue contando hasta que vuelves a verlo.
+- **Al cambiar de objetivo puede olvidarlo** si el juego oculta la identidad del PNJ y ese enemigo no tiene
+  placa visible: entonces solo sigue al objetivo actual.
 - **Es una estimación.** Críticos, maestría y otros modificadores que la descripción no recoge entran con la
   calibración, como media de los últimos combates: un combate con suerte o sin ella se sale de la media. Quedan
   fuera los efectos de conjunto de equipo que cambian el ritmo y los DoTs que dependen de los puntos de combo
   (Destripar, Ruptura). La celeridad, si en combate es secreta, se toma de la última lectura.
-- La placa se marca con las de Blizzard y con Plater; otras placas o marcos de unidad, no.
+- Las placas se marcan con las de Blizzard y con Plater, y el foco con el marco de Blizzard; otras placas o
+  marcos de unidad, no.
 
 ## Informar de un problema
 

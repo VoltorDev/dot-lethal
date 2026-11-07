@@ -859,17 +859,28 @@ function M.new(opts)
     end
     -- Objetivo y hechizos (DoTLetal). opts.target = { exists, attackable, dead } (por defecto, sin
     -- objetivo); opts.spells = { [spellID] = { name, description } } para C_Spell.
+    -- Otras unidades (foco, placas, enemigo suave): state.units[unidad] = { exists, attackable, dead }, con
+    -- env:SetUnit y env:AddPlate.
     state.target = opts.target or { exists = false }
+    state.units = {}
+    state.plates = {} -- token -> placa
     state.spells = opts.spells or {}
+    local function unitInfo(unit)
+        if unit == "target" then return state.target end
+        return state.units[unit]
+    end
     G.UnitExists = function(unit)
         if unit == "player" then return true end
-        return unit == "target" and state.target.exists == true
+        local info = unitInfo(unit)
+        return info ~= nil and info.exists == true
     end
     G.UnitCanAttack = function(_, unit)
-        return unit == "target" and state.target.exists == true and state.target.attackable ~= false
+        local info = unitInfo(unit)
+        return info ~= nil and info.exists == true and info.attackable ~= false
     end
     G.UnitIsDeadOrGhost = function(unit)
-        return unit == "target" and state.target.dead == true
+        local info = unitInfo(unit)
+        return info ~= nil and info.dead == true
     end
     -- Hechizos y talentos que tiene el jugador: opts.known = { [spellID] = true }.
     state.known = opts.known or {}
@@ -1006,6 +1017,10 @@ function M.new(opts)
     -- barra de vida en la ruta de Mainline.
     G.C_NamePlate = {
         GetNamePlateForUnit = function(unit)
+            if state.plates[unit] and G.UnitExists(unit) then return state.plates[unit] end
+            if unit == "target" and state.targetPlate and state.target.exists then
+                return state.plates[state.targetPlate]
+            end
             if unit ~= "target" or not opts.nameplate or not state.target.exists then return nil end
             if not state.plate then
                 local plate = env:_NewWidget("Frame", nil, env.UIParent)
@@ -1016,6 +1031,14 @@ function M.new(opts)
             return state.plate
         end,
     }
+    -- Marco de foco, con la misma ruta que el de objetivo (FocusFrame hereda TargetFrameTemplate).
+    if opts.focusFrame ~= false then
+        local ff = env:_NewWidget("Button", "FocusFrame", nil)
+        ff.TargetFrameContent = { TargetFrameContentMain = { HealthBarsContainer = {} } }
+        local fbar = env:_NewWidget("StatusBar", nil, ff)
+        fbar:SetSize(126, 20)
+        ff.TargetFrameContent.TargetFrameContentMain.HealthBarsContainer.HealthBar = fbar
+    end
     if opts.targetFrame ~= false then
         local tf = env:_NewWidget("Button", "TargetFrame", nil)
         tf.TargetFrameContent = { TargetFrameContentMain = { HealthBarsContainer = {} } }
@@ -1243,9 +1266,63 @@ function M.new(opts)
         self:Fire("PLAYER_TARGET_CHANGED")
     end
 
-    -- El jugador termina de lanzar un hechizo.
-    function env:Cast(spellID)
-        self:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-0-0-0-" .. spellID, spellID)
+    -- Otra unidad (foco, enemigo suave...): info como opts.target (nil = no existe), su GUID y su nombre.
+    function env:SetUnit(unit, info, guid, name, secretGuid)
+        state.units[unit] = info
+        opts.guids = opts.guids or {}
+        opts.guids[unit] = guid
+        opts.names = opts.names or {}
+        opts.names[unit] = name and { name } or nil
+        opts.secretIdentity = opts.secretIdentity or {}
+        opts.secretIdentity[unit] = secretGuid or nil
+        if unit == "focus" then
+            self:Fire("PLAYER_FOCUS_CHANGED")
+        end
+    end
+
+    -- Aparece la placa de un enemigo ("nameplate3"). target = true: es la placa del objetivo.
+    function env:AddPlate(token, info, guid, secretGuid, target)
+        self:SetUnit(token, info or { exists = true, attackable = true }, guid, nil, secretGuid)
+        local plate = env:_NewWidget("Frame", nil, env.UIParent)
+        plate.namePlateUnitToken = token
+        plate.UnitFrame = env:_NewWidget("Button", nil, plate)
+        plate.UnitFrame.unit = token
+        plate.UnitFrame.healthBar = env:_NewWidget("StatusBar", nil, plate.UnitFrame)
+        state.plates[token] = plate
+        if target then
+            state.targetPlate = token
+        end
+        self:Fire("NAME_PLATE_UNIT_ADDED", token)
+        return plate
+    end
+
+    function env:RemovePlate(token)
+        self:Fire("NAME_PLATE_UNIT_REMOVED", token)
+        state.plates[token] = nil
+        state.units[token] = nil
+        if state.targetPlate == token then
+            state.targetPlate = nil
+        end
+    end
+
+    function env:SetTargetPlate(token)
+        state.targetPlate = token
+    end
+
+    -- El jugador pulsa un hechizo (UNIT_SPELLCAST_SENT, con el nombre del destino) y termina de lanzarlo.
+    -- n distingue lanzamientos del mismo hechizo (castGUID distinto).
+    function env:Send(spellID, targetName, n)
+        self:Fire(
+            "UNIT_SPELLCAST_SENT",
+            "player",
+            targetName or "",
+            "Cast-3-0-0-" .. (n or 0) .. "-" .. spellID,
+            spellID
+        )
+    end
+
+    function env:Cast(spellID, n)
+        self:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-0-0-" .. (n or 0) .. "-" .. spellID, spellID)
     end
 
     function env:SetHealth(unit, current, maximum)

@@ -23,7 +23,10 @@ ns.Dots = Dots
 local AGONY_CLASSIC = { 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 1.5, 1.5, 1.5, 1.5 }
 --   physical: sangrado (daño físico). Se puede esquivar o parar, y sus ticks no se distinguen de los golpes cuerpo
 --             a cuerpo; ver Dots.OnCombat.
+--   travel:   proyectil: el DoT empieza al impactar, así que el primer tick puede llegar hasta `travel` segundos
+--             tarde (Does It Die midió 3,6-3,9 s en vez de 3 en Picadura de serpiente). Solo afecta a Dots.Housekeep.
 local BLEED = { physical = true }
+local PROJECTILE = { travel = 1.5 }
 Dots.SPECIALS = {
     Forever = {
         [980] = { weights = AGONY_CLASSIC },
@@ -33,6 +36,9 @@ Dots.SPECIALS = {
         [1943] = BLEED, -- Ruptura
         [1822] = BLEED, -- Arañazo
         [1079] = BLEED, -- Destripar
+        [133] = PROJECTILE, -- Bola de Fuego
+        [11366] = PROJECTILE, -- Piroexplosión
+        [1978] = PROJECTILE, -- Picadura de serpiente
     },
     Retail = {
         [980] = { ramp = 8 },
@@ -222,6 +228,11 @@ function Dots.NewEntry(def, description, now, haste, previous)
         end
     end
     local factor = Dots.Factor(def.name)
+    if Dots.CAUTIOUS then
+        -- Modo prudente: la calibración solo puede bajar el daño. Lo que la sube (críticos, sobre todo) no se
+        -- da por hecho, y la calavera sale solo si los DoTs bastan sin ello.
+        factor = math.min(factor, 1)
+    end
     local entry = {
         start = start,
         duration = duration,
@@ -238,6 +249,11 @@ function Dots.NewEntry(def, description, now, haste, previous)
         calibrate = not Dots.IsMixed(description, def.mode),
         credited = 0,
         creditedTicks = 0,
+        -- Respaldo de los fallos (Dots.Housekeep): si no se ve ningún tick, el DoT no entró.
+        seen = false,
+        missed = 0,
+        checked = 0,
+        travel = def.travel or 0,
     }
     entry.total = Dots.Remaining(entry, now)
     return entry
@@ -256,6 +272,7 @@ end
 Dots.LEAD = 3 -- segundos de aviso previo (ámbar); lo cambia la opción renewLead
 Dots.LATENCY = 0.1 -- margen para que el nuevo no llegue un pelo antes del último tick (Forever)
 Dots.DROPPED_HOLD = 8 -- segundos que se avisa de un DoT caído si no se relanza
+Dots.CAUTIOUS = false -- modo prudente (opción cautious): ver NewEntry
 
 -- Fase de renovación de una entrada: fase y segundos que faltan para empezar a lanzarlo (0 si ya toca).
 function Dots.RenewPhase(entry, now, castTime)
@@ -352,8 +369,9 @@ function Dots.Haste()
     return lastHaste
 end
 
--- Estado: DoTs por objetivo. La clave es el GUID cuando se puede leer; si la identidad del PNJ es
--- secreta (no se puede usar de clave), solo se sigue el objetivo actual y se olvida al cambiarlo.
+-- Estado: DoTs por enemigo (Dots.UnitKey). La clave es el GUID cuando se puede leer. Si la identidad del PNJ es
+-- secreta (mazmorras), la de su placa ("plate:nameplate3"), que no cambia mientras la placa está; si tampoco
+-- tiene placa, solo se sigue el objetivo actual ("current") y se olvida al cambiarlo.
 local CURRENT = "current"
 local byID = {} -- spellID que se lanza -> definición
 local byName = {} -- nombre localizado -> definición (otros rangos y variantes con otro ID)
@@ -362,7 +380,15 @@ local currentKey
 -- DoTs que se han caído del objetivo actual sin relanzarlos: [nombre] = { name, icon, spellID, at }.
 local dropped = {}
 local pending -- último DoT lanzado cuyo resultado aún no se sabe: { key, name, entry, previous, at, landed }
-local lastOutcome -- último resultado sobre el objetivo: { key, avoided, action, school, at }
+local lastOutcome -- último resultado sobre un enemigo: { key, avoided, action, school, at }
+-- Enemigo al que iba cada lanzamiento, apuntado al pulsarlo (UNIT_SPELLCAST_SENT) por castGUID. Un DoT instantáneo
+-- da UNIT_SPELLCAST_SUCCEEDED un viaje al servidor después, y quien cambia de objetivo enseguida ya tiene otro: el
+-- DoT acababa en el nuevo. Idea de Does It Die (MIT), reescrita.
+local sent = {} -- castGUID -> { key, gen, at }; key = false si iba a algo que no se puede seguir
+local SENT_SECONDS = 10
+local targetGen = 0 -- sube con cada cambio de objetivo: "current" deja de ser el mismo enemigo
+local seenSig, seenAt = {}, nil -- resultados ya tratados en este fotograma (llegan para target, placa y foco)
+local feedAt -- último UNIT_COMBAT legible: prueba de que los golpes llegan al addon (ver Dots.Housekeep)
 
 -- ¿Tiene el jugador ese hechizo o talento? C_SpellBook.IsSpellKnown (el IsPlayerSpell de siempre es ahora un
 -- alias suyo, Deprecated_SpellBook.lua:11-14). INFERENCIA: comprobar en el cliente que ve los talentos pasivos.
@@ -456,12 +482,61 @@ function Dots.Definition(spellID)
     return byID[spellID] or byName[C_Spell.GetSpellName(spellID) or ""]
 end
 
-local function TargetKey()
-    local guid = UnitGUID("target")
-    if guid == nil or issecretvalue(guid) then
-        return CURRENT
+-- Token de la placa de un enemigo ("nameplate3"), o nil.
+local function PlateToken(unit)
+    if unit:match("^nameplate%d+$") then
+        return unit
     end
-    return guid
+    local plate = C_NamePlate and C_NamePlate.GetNamePlateForUnit and C_NamePlate.GetNamePlateForUnit(unit)
+    if type(plate) ~= "table" then
+        return nil
+    end
+    ---@type table?
+    local unitFrame = plate.UnitFrame
+    local token = plate.namePlateUnitToken or (unitFrame and unitFrame.unit)
+    if type(token) ~= "string" or issecretvalue(token) or not token:match("^nameplate%d+$") then
+        return nil
+    end
+    return token
+end
+
+-- Clave estable del enemigo detrás de una unidad, o nil si no se puede seguir (ver «Estado» arriba).
+function Dots.UnitKey(unit)
+    if type(unit) ~= "string" or not UnitExists(unit) then
+        return nil
+    end
+    local guid = UnitGUID(unit)
+    if guid ~= nil and not issecretvalue(guid) then
+        return guid
+    end
+    local token = PlateToken(unit)
+    if token then
+        return "plate:" .. token
+    end
+    return unit == "target" and CURRENT or nil
+end
+
+local function TargetKey()
+    return Dots.UnitKey("target") or CURRENT
+end
+
+-- Olvida los DoTs de un enemigo que ya no se puede seguir (su placa se ha ido o ha muerto). Si aún les quedaba daño,
+-- el combate deja de servir para calibrar, salvo si ha muerto (dead): entonces sus DoTs ya no hacen nada.
+function Dots.ForgetKey(key, now, dead)
+    local dots = key and targets[key]
+    if not dots then
+        return
+    end
+    for _, entry in pairs(dots) do
+        Credit(entry, now, key)
+        if not dead and ledger.active and Dots.Remaining(entry, now) > 0 then
+            ledger.dirty = true
+        end
+    end
+    targets[key] = nil
+    if pending and pending.key == key then
+        pending = nil
+    end
 end
 
 -- Con la identidad del PNJ secreta no se puede seguir al objetivo anterior: sus DoTs se olvidan. Si aún les quedaba
@@ -476,7 +551,10 @@ function Dots.OnTargetChanged(now)
     end
     targets[CURRENT] = nil
     wipe(dropped)
-    pending, lastOutcome = nil, nil
+    targetGen = targetGen + 1
+    if pending and pending.key == CURRENT then
+        pending = nil
+    end
     currentKey = UnitExists("target") and TargetKey() or nil
 end
 
@@ -491,22 +569,85 @@ function Dots.TargetDied(now)
     Dots.OnTargetChanged(now)
 end
 
--- Devuelve true si el hechizo era un DoT y se ha apuntado.
-function Dots.OnCast(spellID, now)
-    if issecretvalue(spellID) or not UnitExists("target") or UnitIsDeadOrGhost("target") then
+local function ReadableName(unit)
+    local name = UnitName(unit)
+    if type(name) == "string" and not issecretvalue(name) and name ~= "" then
+        return name
+    end
+    return nil
+end
+
+-- ¿Se le puede poner un DoT a esa unidad? (existe, se puede atacar y no está muerta)
+local function Hostile(unit)
+    if not UnitExists(unit) or UnitIsDeadOrGhost(unit) then
         return false
     end
-    local attackable = UnitCanAttack("player", "target")
-    if not issecretvalue(attackable) and not attackable then
+    local attackable = UnitCanAttack("player", unit)
+    return issecretvalue(attackable) or attackable == true
+end
+
+-- A qué unidad va un lanzamiento. UNIT_SPELLCAST_SENT solo da el nombre: si coincide con el foco y no con el
+-- objetivo (macro /cast [@focus]) va al foco, y si coincide con el enemigo suave (lanzar al ratón o al objetivo
+-- suave) va a ese. Con un objetivo amistoso, el lanzamiento va al enemigo suave.
+local function SentUnit(targetName)
+    local attackable = UnitExists("target") and UnitCanAttack("player", "target")
+    local default = (not issecretvalue(attackable) and attackable == false) and "softenemy" or "target"
+    if type(targetName) ~= "string" or issecretvalue(targetName) or targetName == "" then
+        return default
+    end
+    if ReadableName("target") == targetName then
+        return default
+    end
+    for _, unit in ipairs({ "focus", "softenemy" }) do
+        if ReadableName(unit) == targetName then
+            return unit
+        end
+    end
+    return default
+end
+
+-- El jugador pulsa un hechizo (UNIT_SPELLCAST_SENT): se apunta a qué enemigo va.
+function Dots.OnCastSent(targetName, castGUID, now)
+    for guid, info in pairs(sent) do
+        if now - info.at > SENT_SECONDS then
+            sent[guid] = nil
+        end
+    end
+    if type(castGUID) ~= "string" or issecretvalue(castGUID) then
+        return
+    end
+    local unit = SentUnit(targetName)
+    local key = Hostile(unit) and Dots.UnitKey(unit) or false
+    sent[castGUID] = { key = key, gen = targetGen, at = now }
+end
+
+-- Devuelve true si el hechizo era un DoT y se ha apuntado.
+function Dots.OnCast(spellID, now, castGUID)
+    if issecretvalue(spellID) then
         return false
+    end
+    local info = type(castGUID) == "string" and not issecretvalue(castGUID) and sent[castGUID]
+    local key
+    if info then
+        sent[castGUID] = nil
+        -- Iba a algo que no se puede seguir, o a "current" y desde entonces el objetivo es otro.
+        if not info.key or (info.key == CURRENT and info.gen ~= targetGen) then
+            return false
+        end
+        key = info.key
+    else
+        if not Hostile("target") then
+            return false
+        end
+        currentKey = currentKey or TargetKey()
+        key = currentKey
     end
     local def = Dots.Definition(spellID)
     if not def then
         return false
     end
     local name = C_Spell.GetSpellName(spellID) or def.name
-    currentKey = currentKey or TargetKey()
-    local dots = targets[currentKey] or {}
+    local dots = targets[key] or {}
     -- La descripción del hechizo lanzado; si no la entiende, la del aura que pone (Fuego lunar -> su DoT).
     local description = C_Spell.GetSpellDescription(spellID)
     local entry = Dots.NewEntry(def, description, now, Dots.Haste(), dots[name])
@@ -520,18 +661,20 @@ function Dots.OnCast(spellID, now)
     end
     entry.name, entry.icon, entry.spellID = name, C_Spell.GetSpellTexture(spellID), spellID
     entry.physical = def.physical == true
-    dropped[name] = nil
+    if key == currentKey then
+        dropped[name] = nil
+    end
     local previous = dots[name]
     if previous then
-        Credit(previous, now, currentKey) -- lo que hizo la aplicación anterior hasta ahora
+        Credit(previous, now, key) -- lo que hizo la aplicación anterior hasta ahora
     end
-    targets[currentKey] = dots
+    targets[key] = dots
     dots[name] = entry
-    pending = { key = currentKey, name = name, entry = entry, previous = previous, at = now }
+    pending = { key = key, name = name, entry = entry, previous = previous, at = now }
     -- El resultado puede llegar un instante antes que UNIT_SPELLCAST_SUCCEEDED.
     local last = lastOutcome
-    if last and last.avoided and last.key == currentKey and now - last.at <= Dots.OUTCOME_LOOKBACK then
-        Dots.OnCombat(last.action, last.school, now, true)
+    if last and last.avoided and last.key == key and now - last.at <= Dots.OUTCOME_LOOKBACK then
+        Dots.OnCombat(key, last.action, last.school, now, true)
     end
     return true
 end
@@ -576,10 +719,28 @@ local function CouldBeDot(entry, action, school)
     return not known or school ~= PHYSICAL
 end
 
--- Resultado de un ataque sobre el objetivo (UNIT_COMBAT de "target"). Devuelve true si ha quitado un DoT.
--- `early`: un resultado guardado que llegó antes que el lanzamiento (no se vuelve a guardar).
-function Dots.OnCombat(action, school, now, early)
-    if issecretvalue(action) or type(action) ~= "string" then
+-- Segundos a cada lado de la hora prevista de un tick en los que un golpe cuenta como suyo (Does It Die midió en
+-- Forever el primer tick a ~0,1 s de lo previsto).
+Dots.TICK_WINDOW = 0.45
+
+-- Un golpe (WOUND o ABSORB) sobre el enemigo `key`: si cae cuando tocaba un tick de un DoT aún sin ver, está puesto.
+local function SeeTick(key, school, now)
+    for _, entry in pairs(targets[key] or {}) do
+        if not entry.seen and CouldBeDot(entry, "WOUND", school) then
+            local k = math.floor((now - entry.start) / entry.interval + 0.5)
+            local due = entry.start + math.max(k, 1) * entry.interval
+            local late = now - due
+            if late >= -Dots.TICK_WINDOW and late <= Dots.TICK_WINDOW + (k <= 1 and entry.travel or 0) then
+                entry.seen = true
+            end
+        end
+    end
+end
+
+-- Resultado de un ataque sobre un enemigo (UNIT_COMBAT; `key` = Dots.UnitKey de su unidad). Devuelve true si ha
+-- quitado un DoT. `early`: un resultado guardado que llegó antes que el lanzamiento (no se vuelve a guardar).
+function Dots.OnCombat(key, action, school, now, early)
+    if not key or issecretvalue(action) or type(action) ~= "string" then
         return false
     end
     local avoided = AVOIDED[action] == true
@@ -587,12 +748,24 @@ function Dots.OnCombat(action, school, now, early)
         return false
     end
     if not early then
-        -- Antes del primer lanzamiento aún no hay clave del objetivo: se toma ahora, como hará OnCast.
-        currentKey = currentKey or (UnitExists("target") and TargetKey() or nil)
-        lastOutcome = { key = currentKey, avoided = avoided, action = action, school = school, at = now }
+        -- El mismo golpe llega para target, su placa, el foco...: se trata una vez.
+        if seenAt ~= now then
+            seenSig, seenAt = {}, now
+        end
+        local readable = type(school) == "number" and not issecretvalue(school)
+        local sig = key .. ":" .. action .. ":" .. (readable and school or "?")
+        if seenSig[sig] then
+            return false
+        end
+        seenSig[sig] = true
+        feedAt = now
+        lastOutcome = { key = key, avoided = avoided, action = action, school = school, at = now }
+        if not avoided then
+            SeeTick(key, school, now)
+        end
     end
     local cast = pending
-    if not cast or cast.key ~= currentKey then
+    if not cast or cast.key ~= key then
         return false
     end
     if now - cast.at > Dots.OUTCOME_WINDOW then
@@ -621,10 +794,92 @@ function Dots.OnCombat(action, school, now, early)
         if next(dots) == nil then
             targets[cast.key] = nil
         end
-        dropped[cast.name] = { name = cast.name, icon = cast.entry.icon, spellID = cast.entry.spellID, at = now }
+        if cast.key == currentKey then
+            dropped[cast.name] = { name = cast.name, icon = cast.entry.icon, spellID = cast.entry.spellID, at = now }
+        end
     end
     ns.Debug("DoT fallado:", cast.name, action)
     return true
+end
+
+-- Respaldo de los fallos que no se avisan: un DoT del que no se ha visto ningún tick tras MISSED_TICKS ticks que se
+-- podían ver no está puesto. Solo cuentan los ticks de enemigos a la vista (`observed[clave]`: objetivo, foco y
+-- placas visibles), porque UNIT_COMBAT solo llega para unidades: el de un enemigo sin placa cae sin que se vea.
+Dots.MISSED_TICKS = 2
+-- Un tick sin ver solo cuenta si hace poco llegó algún UNIT_COMBAT legible: si el cliente dejara de mandarlos (o
+-- en un rato sin golpes de nadie), quitar los DoTs por no ver sus ticks sería un error.
+Dots.FEED_SECONDS = 15
+
+function Dots.Housekeep(now, observed)
+    for key, dots in pairs(targets) do
+        for name, entry in pairs(dots) do
+            if not entry.seen then
+                local due = 0 -- ticks cuya hora (más el margen) ya ha pasado
+                local total = LastTick(entry)
+                while due < total do
+                    local k = due + 1
+                    local limit = entry.start + k * entry.interval + Dots.TICK_WINDOW + (k == 1 and entry.travel or 0)
+                    if limit >= now then
+                        break
+                    end
+                    due = k
+                end
+                if due > entry.checked then
+                    local feeding = feedAt and now - feedAt <= Dots.FEED_SECONDS
+                    if feeding and observed and observed[key] then
+                        entry.missed = entry.missed + (due - entry.checked)
+                    end
+                    entry.checked = due
+                end
+                if entry.missed >= Dots.MISSED_TICKS then
+                    dots[name] = nil
+                    Credit(entry, now, key)
+                    if key == currentKey then
+                        dropped[name] = { name = name, icon = entry.icon, spellID = entry.spellID, at = now }
+                    end
+                    ns.Debug("DoT sin ticks, quitado:", name)
+                end
+            end
+            -- Terminado en un enemigo que no es el objetivo (el del objetivo lo borra TargetState, que avisa de
+            -- que ha caído): fuera, para que el reloj del addon no siga en marcha por nada.
+            if dots[name] and key ~= currentKey then
+                Credit(entry, now, key)
+                if Dots.Remaining(entry, now) <= 0 then
+                    dots[name] = nil
+                end
+            end
+        end
+        if next(dots) == nil then
+            targets[key] = nil
+        end
+    end
+end
+
+-- Daño que les queda a los DoTs propios sobre el enemigo `key` (para las placas y el foco). Borra lo terminado.
+function Dots.DamageFor(key, now)
+    local dots = key and targets[key]
+    if not dots then
+        return 0
+    end
+    local damage = 0
+    for name, entry in pairs(dots) do
+        Credit(entry, now, key)
+        local left = Dots.Remaining(entry, now)
+        if left <= 0 then
+            dots[name] = nil
+        else
+            damage = damage + left
+        end
+    end
+    if next(dots) == nil then
+        targets[key] = nil
+    end
+    return damage
+end
+
+-- ¿Queda algún DoT propio apuntado en algún enemigo?
+function Dots.HasAny()
+    return next(targets) ~= nil
 end
 
 -- Estado de los DoTs propios sobre el objetivo actual:
@@ -709,7 +964,8 @@ function Dots.Clear()
     end
     wipe(targets)
     wipe(dropped)
-    pending, lastOutcome = nil, nil
+    wipe(sent)
+    pending, lastOutcome, feedAt = nil, nil, nil
     currentKey = nil
 end
 

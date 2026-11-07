@@ -21,7 +21,7 @@ describe("opciones en Settings", function()
         assert.are.equal(0, countKeys(registry.settings))
 
         env:Fire("ADDON_LOADED", env:AddonName(), false)
-        assert.are.equal(13, countKeys(registry.settings))
+        assert.are.equal(15, countKeys(registry.settings))
         assert.are.equal(1, #registry.addOnCategories)
         assert.are.equal(ns.settingsCategory, registry.addOnCategories[1])
         assert.are.equal(ns.L.ADDON_TITLE, ns.settingsCategory:GetName())
@@ -33,6 +33,8 @@ describe("opciones en Settings", function()
             TargetFrame = { "targetFrame", "boolean" },
             Nameplate = { "nameplate", "boolean" },
             Calibrate = { "calibrate", "boolean" },
+            FocusFrame = { "focusFrame", "boolean" },
+            Cautious = { "cautious", "boolean" },
             RenewButtons = { "renewButtons", "boolean" },
             RenewStrip = { "renewStrip", "string" },
             RenewLead = { "renewLead", "number" },
@@ -60,7 +62,8 @@ describe("opciones en Settings", function()
             "Slider",
             "Dropdown",
             "Checkbox", -- marco de objetivo
-            "Checkbox", -- placa
+            "Checkbox", -- placas
+            "Checkbox", -- marco de foco
             "Checkbox", -- avisar en los botones de acción
             "Dropdown", -- iconos de aviso sobre el panel
             "Slider", -- segundos de aviso previo
@@ -68,6 +71,7 @@ describe("opciones en Settings", function()
             "Checkbox", -- bloquear
             "Checkbox", -- traza
             "Checkbox", -- calibrar con el medidor de daño
+            "Checkbox", -- modo prudente
             "Checkbox", -- DPS del DoT en el tooltip
             "Header",
             "Button",

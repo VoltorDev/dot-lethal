@@ -4,8 +4,8 @@ local Dots = ns.Dots
 local Marker = ns.Marker
 local module = ns:NewModule("Indicator")
 
--- Panel y marcas: daño por segundo de los DoTs, tiempo de cada uno y, en las barras de vida del
--- objetivo (panel, marco de objetivo y su placa), lo que perderá por DoTs y una calavera si muere.
+-- Panel y marcas: daño por segundo de los DoTs, tiempo de cada uno y, en las barras de vida (panel, marco de
+-- objetivo, marco de foco y placas de cada enemigo con DoTs tuyos), lo que perderá por DoTs y una calavera si muere.
 -- La vida del objetivo solo se entrega a Marker; aquí no se compara ni se opera con ella.
 local TICK = 0.2 -- segundos entre actualizaciones mientras quedan DoTs
 local WIDTH = 200
@@ -34,9 +34,18 @@ local function TargetFrameBar()
     return container and container.HealthBar
 end
 
-local function NameplateBar()
+local function FocusFrameBar()
+    local focus = _G["FocusFrame"] -- no está en las anotaciones; en Forever existe (Mainline/TargetFrame.xml)
+    local content = focus and focus.TargetFrameContent
+    local main = content and content.TargetFrameContentMain
+    local container = main and main.HealthBarsContainer
+    return container and container.HealthBar
+end
+
+-- Barra de vida de la placa de una unidad ("target" o "nameplate3").
+local function NameplateBar(unit)
     ---@type table? placa de Blizzard (UnitFrame) o de Plater (unitFrame)
-    local plate = C_NamePlate.GetNamePlateForUnit("target")
+    local plate = C_NamePlate.GetNamePlateForUnit(unit or "target")
     if not plate then
         return nil
     end
@@ -95,9 +104,13 @@ function module:OnEnable()
     end
 
     frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+    frame:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player") -- a qué enemigo va cada lanzamiento
+    frame:RegisterUnitEvent("UNIT_HEALTH", "focus")
     frame:RegisterUnitEvent("UNIT_HEALTH", "target")
     frame:RegisterUnitEvent("UNIT_MAXHEALTH", "target")
-    frame:RegisterUnitEvent("UNIT_COMBAT", "target") -- DoTs fallados (Dots.OnCombat)
+    -- Fallos y ticks de los DoTs (Dots.OnCombat) en el objetivo, el foco y las placas: RegisterUnitEvent admite dos.
+    frame:RegisterEvent("UNIT_COMBAT")
+    frame:RegisterEvent("PLAYER_FOCUS_CHANGED")
     frame:RegisterEvent("PLAYER_TARGET_CHANGED")
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
@@ -147,6 +160,7 @@ function module:OnEnable()
     self.panelBar = health
     self.panelMarker = Marker.New(health, 14)
     self.hostMarkers = {} -- barra anfitriona -> Marker (las placas se reciclan: una por barra)
+    self.plates = {} -- tokens de las placas visibles ("nameplate3" = true)
     self:MarkerFor(TargetFrameBar()) -- fuera de combate: el marco de objetivo es de Blizzard
     Dots.Rebuild()
     Dots.OnTargetChanged()
@@ -163,6 +177,8 @@ local REMAP = {
     SPELLS_CHANGED = true,
 }
 
+local COMBAT_UNITS = { target = true, focus = true, softenemy = true }
+
 function module:OnEvent(event, ...)
     if REMAP[event] then
         self.buttonMap = nil -- otra ranura, página o hechizo: se vuelve a buscar qué botón tiene cada DoT
@@ -171,13 +187,30 @@ function module:OnEvent(event, ...)
         end
     end
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
-        local _, _, spellID = ...
-        if Dots.OnCast(spellID, GetTime()) then
+        local _, castGUID, spellID = ...
+        if Dots.OnCast(spellID, GetTime(), castGUID) then
             self:StartTicker()
         end
+    elseif event == "UNIT_SPELLCAST_SENT" then
+        local _, targetName, castGUID = ...
+        Dots.OnCastSent(targetName, castGUID, GetTime())
+        return
     elseif event == "UNIT_COMBAT" then
-        local _, action, _, _, school = ...
-        Dots.OnCombat(action, school, GetTime())
+        local unit, action, _, _, school = ...
+        if not COMBAT_UNITS[unit] and not (type(unit) == "string" and unit:match("^nameplate%d+$")) then
+            return
+        end
+        if Dots.OnCombat(Dots.UnitKey(unit), action, school, GetTime()) then
+            self:Update()
+        end
+        return
+    elseif event == "NAME_PLATE_UNIT_ADDED" or event == "NAME_PLATE_UNIT_REMOVED" then
+        -- El token pasa al siguiente enemigo que tenga placa: lo apuntado con él era del anterior.
+        local token = ...
+        if type(token) == "string" and not issecretvalue(token) then
+            Dots.ForgetKey("plate:" .. token, GetTime())
+            self.plates[token] = event == "NAME_PLATE_UNIT_ADDED" or nil
+        end
     elseif event == "PLAYER_TARGET_CHANGED" then
         Dots.OnTargetChanged()
         Dots.Prune(GetTime())
@@ -209,15 +242,74 @@ function module:StopTicker()
     end
 end
 
+-- Barras ajenas del objetivo (marco de objetivo y su placa).
 function module:HostBars()
     local db, bars = ns.db, {}
     if db.targetFrame then
         bars[#bars + 1] = TargetFrameBar()
     end
     if db.nameplate then
-        bars[#bars + 1] = NameplateBar()
+        bars[#bars + 1] = NameplateBar("target")
     end
     return bars
+end
+
+-- Enemigos que no son el objetivo y pueden llevar marca: el foco y cada placa visible. { unit, key, bars }.
+function module:OtherUnits(targetKey)
+    local db, list, seen = ns.db, {}, {}
+    if targetKey then
+        seen[targetKey] = true
+    end
+    local function Add(unit, bar)
+        local key = Dots.UnitKey(unit)
+        if not key or key == "current" then
+            return
+        end
+        if UnitIsDeadOrGhost(unit) then
+            Dots.ForgetKey(key, GetTime(), true) -- muerto: sus DoTs ya no hacen daño
+            return
+        end
+        if seen[key] then
+            -- El foco con placa: la misma marca va a las dos barras.
+            for _, item in ipairs(list) do
+                if item.key == key and bar then
+                    item.bars[#item.bars + 1] = bar
+                end
+            end
+            return
+        end
+        seen[key] = true
+        list[#list + 1] = { unit = unit, key = key, bars = { bar } }
+    end
+    if db.focusFrame and UnitExists("focus") then
+        Add("focus", FocusFrameBar())
+    end
+    if db.nameplate then
+        for token in pairs(self.plates) do
+            if UnitExists(token) then
+                Add(token, NameplateBar(token))
+            end
+        end
+    end
+    return list
+end
+
+-- Enemigos cuyos golpes llegan ahora al addon (para el respaldo de Dots.Housekeep).
+function module:Observed()
+    local observed = {}
+    for _, unit in ipairs({ "target", "focus" }) do
+        local key = Dots.UnitKey(unit)
+        if key then
+            observed[key] = true
+        end
+    end
+    for token in pairs(self.plates) do
+        local key = Dots.UnitKey(token)
+        if key then
+            observed[key] = true
+        end
+    end
+    return observed
 end
 
 function module:MarkerFor(bar)
@@ -433,9 +525,11 @@ function module:Update()
         hasTarget = false
     end
     local now = GetTime()
+    Dots.Housekeep(now, self:Observed())
     local state = Dots.TargetState(now)
-    -- Un DoT caído se sigue avisando un rato aunque ya no quede daño: el reloj sigue mientras haya avisos.
-    if state.damage <= 0 and #state.alerts == 0 then
+    -- Un DoT caído se sigue avisando un rato aunque ya no quede daño: el reloj sigue mientras haya avisos o DoTs
+    -- en otros enemigos.
+    if state.damage <= 0 and #state.alerts == 0 and not Dots.HasAny() then
         self:StopTicker()
     end
     local active = db.enabled and hasTarget and state.damage > 0
@@ -455,6 +549,20 @@ function module:Update()
             if marker then
                 marker:Update("target", damage, UnitHealth("target"), UnitHealthMax("target"))
                 used[marker] = true
+            end
+        end
+    end
+    if db.enabled then
+        for _, other in ipairs(self:OtherUnits(hasTarget and Dots.UnitKey("target") or nil)) do
+            local damage = math.floor(Dots.DamageFor(other.key, now))
+            if damage > 0 then
+                for _, bar in ipairs(other.bars) do
+                    local marker = not used[bar] and self:MarkerFor(bar)
+                    if marker and not used[marker] then
+                        marker:Update(other.unit, damage, UnitHealth(other.unit), UnitHealthMax(other.unit))
+                        used[marker] = true
+                    end
+                end
             end
         end
     end
@@ -520,6 +628,7 @@ function module:ApplySettings()
     self.alert:SetScale(db.scale)
     self.buttonMap = nil
     Dots.LEAD = db.renewLead
+    Dots.CAUTIOUS = db.cautious == true
     self.frame:EnableMouse(not db.locked)
     Dots.Rebuild()
     self:Update()

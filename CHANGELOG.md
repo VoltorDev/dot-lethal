@@ -2,6 +2,15 @@
 
 ## Sin publicar
 
+- 07-11-2026: el DoT va al enemigo que tenías al pulsarlo, no al de cuando el servidor lo confirma: cambiar de
+  objetivo justo después de un instantáneo ya no se lo pone al nuevo. Las macros al foco y lanzar al ratón también
+  aciertan.
+- 07-11-2026: los DoTs de cada enemigo se siguen aunque cambies de objetivo, también con la identidad del PNJ oculta
+  (mazmorras), por su placa. La franja y la calavera salen en la placa de cada enemigo con DoTs tuyos y en el marco
+  de foco (opción nueva «Marcar el marco de foco», activada).
+- 07-11-2026: respaldo de los fallos: un DoT del que pasan dos ticks sin ver ningún golpe a su hora se quita.
+- 07-11-2026: opción «Modo prudente» (desactivada): la calibración solo puede bajar el daño previsto, así que no
+  cuenta con críticos que aún no han salido y la calavera solo aparece si los DoTs bastan sin ellos.
 - 07-11-2026: un DoT fallado (fallo, resistido, inmune; esquivado o parado si es un sangrado) ya no cuenta su daño en la barra: se quita y sale como «CAÍDO» para relanzarlo. Si era un relanzamiento, sigue contando el anterior. El aviso viene del resultado del ataque sobre el objetivo justo al lanzarlo (idea tomada de Does It Die, MIT). Si en ese mismo instante falla un golpe de tu mascota o de otro jugador, puede quitar un DoT que sí entró: el error es siempre por lo bajo.
 
 ## 1.2.0 (06-11-2026)

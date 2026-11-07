@@ -14,7 +14,9 @@ ns.DEFAULTS = {
     locked = true,
     panel = true, -- panel propio con la lista de DoTs
     targetFrame = true, -- marca en la barra de vida del marco de objetivo
-    nameplate = true, -- marca en la placa del objetivo
+    nameplate = true, -- marca en las placas: la del objetivo y la de cada enemigo con DoTs tuyos
+    focusFrame = true, -- marca en la barra de vida del marco de foco
+    cautious = false, -- modo prudente: la calibración no sube el daño (Dots.NewEntry)
     -- Cuándo relanzar cada DoT (Dots.RenewPhase): encima de su botón de acción y, en iconos sobre el panel,
     -- "fallback" solo los que no están en ninguna barra visible, "always" todos o "never".
     renewButtons = true,

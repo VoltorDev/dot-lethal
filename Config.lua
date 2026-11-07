@@ -83,6 +83,18 @@ function module:OnInitialize()
     nameplate:SetValueChangedCallback(OnSettingChanged)
     Settings.CreateCheckbox(category, nameplate, L.OPT_NAMEPLATE_TT)
 
+    local focusFrame = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_FocusFrame",
+        "focusFrame",
+        db,
+        Settings.VarType.Boolean,
+        L.OPT_FOCUSFRAME,
+        ns.DEFAULTS.focusFrame
+    )
+    focusFrame:SetValueChangedCallback(OnSettingChanged)
+    Settings.CreateCheckbox(category, focusFrame, L.OPT_FOCUSFRAME_TT)
+
     local renewButtons = Settings.RegisterAddOnSetting(
         category,
         addonName .. "_RenewButtons",
@@ -175,6 +187,18 @@ function module:OnInitialize()
     )
     calibrate:SetValueChangedCallback(OnSettingChanged)
     Settings.CreateCheckbox(category, calibrate, L.OPT_CALIBRATE_TT)
+
+    local cautious = Settings.RegisterAddOnSetting(
+        category,
+        addonName .. "_Cautious",
+        "cautious",
+        db,
+        Settings.VarType.Boolean,
+        L.OPT_CAUTIOUS,
+        ns.DEFAULTS.cautious
+    )
+    cautious:SetValueChangedCallback(OnSettingChanged)
+    Settings.CreateCheckbox(category, cautious, L.OPT_CAUTIOUS_TT)
 
     local tooltipDps = Settings.RegisterAddOnSetting(
         category,
