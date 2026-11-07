@@ -24,7 +24,7 @@ propio): subirlo como **Beta**, no como Release, hasta verlo en Forever el 05-11
 | Versiones de juego | Retail 12.1.x (Interface 120100/120105) y **Forever 1.60.1** (Interface 16001). Un solo zip vale para los dos |
 | Tipo de fichero | Beta (ver arriba). Para que el proyecto salga en la app de CurseForge hace falta al menos un Release aprobado |
 | Avatar | 400×400, sin imágenes con copyright (nada de iconos de Blizzard). **Falta** |
-| Capturas | **Faltan**: marco de objetivo con la franja naranja, la calavera y el panel en modo Clásico y Compacto. Solo se pueden hacer en el juego |
+| Capturas | `docs/screenshots/`: `options.png` (cliente en inglés, brujo nivel 9, 07-11-2026). Falta: marco de objetivo con la franja naranja y la calavera, y el panel en Clásico y Compacto (hace falta un DoT puesto en combate). |
 
 ## Descripción (pegar en el editor de CurseForge)
 
@@ -132,3 +132,5 @@ Antes de publicar como Release: verlo en el cliente (`/reload`, BugSack limpio, 
 ```
 
 **1.2.0 (06-11-2026, por Claude con la sesión de Nico en Chrome, por orden suya: «Sí, súbelas»):** fichero «DoT Lethal 1.2.0», `mods\wow\dist\DoTLethal-1.2.0.zip`, tipo **Release**, versiones Forever 1.60.1 y Retail 12.1.5/12.1.0, publicación automática al aprobarse. Changelog en inglés que nombra lo nuevo: daño restante de cada DoT en las filas del panel. Aprobado por CurseForge a los pocos minutos. Pasa las comprobaciones fuera del juego (06-11-2026); **sin probar en el cliente**.
+
+**Capturas (07-11-2026, por Claude con la sesión de Nico en Chrome, por orden suya: «Faltan los otros addons»):** `options.png` de `docs/screenshots/` subidas a Media (galería), con el título por defecto de CurseForge. Falta: marco de objetivo con la franja naranja y la calavera, y el panel en Clásico y Compacto (hace falta un DoT puesto en combate).

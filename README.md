@@ -99,3 +99,7 @@ C:\Users\Nico\.claude\skills\wow-addons\scripts\verificar-addon.ps1 -Carpeta .
 ```
 
 Tests solos: `python tools/probar_addon.py . --ambos`. Estado y pendientes en [PLAN.md](PLAN.md).
+
+## Capturas
+
+![Opciones](docs/screenshots/options.png)
